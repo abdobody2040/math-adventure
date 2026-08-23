@@ -1,4 +1,5 @@
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { drizzle } from "drizzle-orm/mysql2";
 import { randomUUID } from "node:crypto";
 import {
@@ -159,6 +160,10 @@ export async function updateParentPreferences(userId: number, input: { weeklyRep
 
 export async function exportChildData(userId: number, childId: string) {
   const db = await requireDb();
+  const preferences = await getParentPreferences(userId);
+  if (!preferences.dataExportAllowed) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "parent.exportDisabled" });
+  }
   const child = await assertOwnedChild(userId, childId);
   const [progress, attempts, sessions, achievementsForChild, inventory, petsForChild] = await Promise.all([
     db.select().from(skillProgress).where(eq(skillProgress.childId, child.id)),
