@@ -74,6 +74,8 @@ Object.assign(ar as Dictionary, { bosses: { "number-valley": "حارس الأن�
 Object.assign(ar as Dictionary, { boss: { start: "واجه الحارس اللطيف", title: "زعيم العالم", challenge: "تحدٍّ متعدد المهارات", hit: "ضربة مشرقة!", complete: "اكتمل تحدي الحارس!" } });
 Object.assign(ar.rewards as Dictionary, { collection: "مجموعتك", companions: "رفقاء لطفاء", unlocked: "تم الفتح", bossComplete: "اكتمل حارس العالم" });
 Object.assign(ar.parent as Dictionary, { weeklyReport: "صورة التعلم الأسبوعية", weeklyReminder: "أرسل تقريرًا أسبوعيًا لطيفًا", exportData: "صدّر بيانات هذا الطفل" });
+Object.assign(en.parent as Dictionary, { deleteChild: "Remove child profile", deleteConfirm: "Remove this child profile? Their learning data will no longer appear in your dashboard." });
+Object.assign(ar.parent as Dictionary, { deleteChild: "إزالة ملف الطفل", deleteConfirm: "هل تريد إزالة ملف هذا الطفل؟ لن تظهر بيانات تعلمه في لوحة المتابعة بعد الآن." });
 Object.assign(ar.admin as Dictionary, { analytics: "تحليلات تراعي الخصوصية", productHealth: "صحة المنتج", children: "الأطفال" });
 
 const dictionaries: Record<Locale, Dictionary> = { en, ar };
