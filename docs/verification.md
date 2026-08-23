@@ -21,3 +21,13 @@ The first instant preview capture showed the intentionally brief application loa
 At a 375 × 812 mobile viewport, the authenticated onboarding screen displayed a single-column profile form with large touch targets for name, age, grade, avatar selection, and adventure creation. The Arabic language switch was verified in the browser at desktop width: the document switched to Arabic copy and a mirrored right-to-left layout without visible clipping.
 
 The protected child dashboard, map, lesson, and parent dashboard require an actual parent-owned child profile. No artificial child records were inserted solely for visual capture. Their end-to-end data contracts are covered by schema review, server ownership checks, TypeScript validation, and automated tests; a final account-specific acceptance pass can be performed after the product owner creates a child profile.
+
+## Entry-flow repair
+
+The authenticated account in the managed database was confirmed to have a parent profile and zero child profiles. That is a valid first-use state and should show the child-profile onboarding screen, rather than attempt child dashboard queries. The application now resolves this state explicitly before enabling learning queries. It also no longer forces a global OAuth redirect in response to unrelated query or mutation failures; authenticated data failures render a localized retryable error state instead.
+
+The expanded validation suite now reports 12 passing tests, including client entry-flow coverage for the zero-child onboarding state and recoverable child-data loading failures. Type checking and the production build also pass after this repair.
+
+## Visual polish pass
+
+The visual system received an additional refinement pass across the landing, dashboard, map, lesson, parent, and onboarding surfaces. The pass strengthens the warm cream, explorer-purple, mint, and reward-gold palette; adds layered depth, ambient constellation texture, tactile cards and controls, polished progress treatment, and a more distinctive cosmic-math setup motif. A mobile onboarding capture was reviewed at 375 × 812, confirming readable form hierarchy, large touch targets, clear avatar selection, and an unclipped primary action.

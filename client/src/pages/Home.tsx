@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { useLocale } from "@/contexts/LocaleContext";
+import { resolveParentEntryState } from "@/lib/entryFlow";
 import { trpc } from "@/lib/trpc";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Award, Backpack, BarChart3, Check, ChevronDown, CircleHelp, Coins, Compass, Flame, Home as HomeIcon, Languages, LockKeyhole, Menu, Mountain, Play, Shield, Sparkles, Swords, Trees, UserRound, WandSparkles, X, Zap } from "lucide-react";
@@ -200,6 +201,11 @@ function AccessDenied({ returnHome }: { returnHome: () => void }) {
   return <main className="app-main"><section className="empty-state rounded-[24px] border border-[#e4deee] bg-white shadow-[0_8px_22px_rgba(67,48,113,.09)]"><LockKeyhole size={30} /><h1 className="text-[28px]">{t("common.accessDenied")}</h1><p>{t("common.accessDeniedDetail")}</p><button className="secondary-button" onClick={returnHome}>{t("common.returnHome")}</button></section></main>;
 }
 
+function AppFailure({ retry }: { retry: () => void }) {
+  const { t } = useLocale();
+  return <main className="app-main"><section className="empty-state rounded-[24px] border border-[#e4deee] bg-white shadow-[0_8px_22px_rgba(67,48,113,.09)]"><CircleHelp size={30} /><h1 className="text-[28px]">{t("common.error")}</h1><p>{t("offline.offlineDetail")}</p><button className="secondary-button" onClick={retry}>{t("common.retry")}</button></section></main>;
+}
+
 function AdminPanel({ curriculum }: { curriculum: any }) {
   const { t, number } = useLocale();
   const seed = trpc.admin.seedStarterContent.useMutation();
@@ -216,7 +222,7 @@ function ProfileEditor({ child, close, saved }: { child: any; close: () => void;
 function AppExperience() {
   const { t } = useLocale();
   const { user, loading, isAuthenticated, logout } = useAuth();
-  const { data: children, isLoading: childrenLoading, refetch: refetchChildren } = trpc.profile.listChildren.useQuery(undefined, { enabled: isAuthenticated });
+  const { data: children, isLoading: childrenLoading, error: childrenError, refetch: refetchChildren } = trpc.profile.listChildren.useQuery(undefined, { enabled: isAuthenticated });
   const [activeChildId, setActiveChildId] = useState<string | null>(null);
   const [screen, setScreen] = useState<Screen>("home");
   const [lessonSkill, setLessonSkill] = useState("count-to-20");
@@ -233,15 +239,18 @@ function AppExperience() {
   const requestInstall = async () => { if (!installPrompt) return; await installPrompt.prompt(); await installPrompt.userChoice; setInstallPrompt(null); };
   useEffect(() => { if (!activeChildId && children?.[0]) setActiveChildId(children[0].id); }, [activeChildId, children]);
   const activeChild = children?.find(child => child.id === activeChildId) ?? children?.[0];
-  const { data: dashboard, isLoading: dashboardLoading, refetch: refetchDashboard } = trpc.learning.dashboard.useQuery({ childId: activeChild?.id ?? "00000000-0000-0000-0000-000000000000" }, { enabled: Boolean(activeChild?.id) });
-  const { data: curriculum } = trpc.learning.curriculum.useQuery(undefined, { enabled: Boolean(activeChild?.id) });
+  const { data: dashboard, isLoading: dashboardLoading, error: dashboardError, refetch: refetchDashboard } = trpc.learning.dashboard.useQuery({ childId: activeChild?.id ?? "00000000-0000-0000-0000-000000000000" }, { enabled: Boolean(activeChild?.id) });
+  const { data: curriculum, error: curriculumError, refetch: refetchCurriculum } = trpc.learning.curriculum.useQuery(undefined, { enabled: Boolean(activeChild?.id) });
   const beginLesson = (skillKey: string, battle = false) => { setLessonSkill(skillKey); setIsBattle(battle); setScreen(battle ? "battle" : "lesson"); };
   const exitLesson = () => { refetchDashboard(); refetchChildren(); setScreen("home"); };
-  if (loading || (isAuthenticated && childrenLoading)) return <div className="app-loading"><Sparkles size={28} /><p>{t("common.loading")}</p></div>;
-  if (!isAuthenticated) return <Landing />;
-  if (!activeChild) return <Onboarding onCreated={id => { setActiveChildId(id); refetchChildren(); }} />;
+  const entryState = resolveParentEntryState({ authLoading: loading, authenticated: isAuthenticated, childrenLoading, hasChildrenError: Boolean(childrenError), childCount: children?.length ?? 0 });
+  if (entryState === "loading") return <div className="app-loading"><Sparkles size={28} /><p>{t("common.loading")}</p></div>;
+  if (entryState === "landing") return <Landing />;
+  if (entryState === "error") return <AppFailure retry={() => refetchChildren()} />;
+  if (entryState === "onboarding" || !activeChild) return <Onboarding onCreated={id => { setActiveChildId(id); refetchChildren(); }} />;
   if (screen === "lesson" || screen === "battle") return <LessonExperience childId={activeChild.id} skillKey={lessonSkill} isBattle={isBattle} exit={exitLesson} />;
-  return <div className="app-shell"><Navigation screen={screen} setScreen={setScreen} onSignOut={logout} isAdmin={user?.role === "admin"} installPrompt={installPrompt} onInstall={requestInstall} />{dashboardLoading ? <div className="app-loading"><Sparkles size={28} /><p>{t("common.loading")}</p></div> : <>{screen === "home" && <ChildDashboard child={activeChild} dashboard={dashboard} curriculum={curriculum} setScreen={setScreen} startLesson={beginLesson} />}{screen === "map" && <AdventureMap curriculum={curriculum} childDashboard={dashboard} startLesson={beginLesson} />}{screen === "parent" && <ParentDashboard child={activeChild} dashboard={dashboard} curriculum={curriculum} onEdit={() => setEditing(true)} />}{screen === "admin" && (user?.role === "admin" ? <AdminPanel curriculum={curriculum} /> : <AccessDenied returnHome={() => setScreen("home")} />)}</>}{editing && <ProfileEditor child={activeChild} close={() => setEditing(false)} saved={() => { refetchChildren(); refetchDashboard(); }} />}</div>;
+  const retryProtectedData = () => { refetchDashboard(); refetchCurriculum(); };
+  return <div className="app-shell"><Navigation screen={screen} setScreen={setScreen} onSignOut={logout} isAdmin={user?.role === "admin"} installPrompt={installPrompt} onInstall={requestInstall} />{dashboardLoading ? <div className="app-loading"><Sparkles size={28} /><p>{t("common.loading")}</p></div> : (dashboardError || curriculumError) ? <AppFailure retry={retryProtectedData} /> : <>{screen === "home" && <ChildDashboard child={activeChild} dashboard={dashboard} curriculum={curriculum} setScreen={setScreen} startLesson={beginLesson} />}{screen === "map" && <AdventureMap curriculum={curriculum} childDashboard={dashboard} startLesson={beginLesson} />}{screen === "parent" && <ParentDashboard child={activeChild} dashboard={dashboard} curriculum={curriculum} onEdit={() => setEditing(true)} />}{screen === "admin" && (user?.role === "admin" ? <AdminPanel curriculum={curriculum} /> : <AccessDenied returnHome={() => setScreen("home")} />)}</>}{editing && <ProfileEditor child={activeChild} close={() => setEditing(false)} saved={() => { refetchChildren(); refetchDashboard(); }} />}</div>;
 }
 
 export default function Home() { return <AppExperience />; }

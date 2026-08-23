@@ -24,3 +24,9 @@
 - [ ] Perform a final signed-in child/dashboard acceptance pass after a real parent-owned child profile is created; no artificial child records will be inserted for this check.
 - [x] Write GitHub-ready README documentation with architecture, local setup, privacy model, and scope notes.
 - [x] Create a private GitHub repository and push the tested project source.
+- [x] Diagnose the reported application failure across authentication, data loading, and protected learning routes.
+- [x] Fix the root cause and add regression coverage for the failing behavior.
+- [ ] Re-verify the public, onboarding, child, parent, and admin paths before synchronizing the repaired source to GitHub.
+- [x] Elevate the visual polish of landing, onboarding, child, parent, and learning screens with a richer adventure design system and refined interaction states.
+- [x] Verify the polished public landing and onboarding hierarchy, responsive spacing, and RTL presentation before publishing the update.
+- [ ] Visually verify the polished authenticated child dashboard, map, lesson/battle, parent dashboard, and admin screen after a real child profile is available.
