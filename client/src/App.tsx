@@ -1,18 +1,21 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import LandingPage from "@/pages/LandingPage";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LocaleProvider } from "./contexts/LocaleContext";
+import { useLocale } from "./contexts/LocaleContext";
 const AuthenticatedAdventure = lazy(() => import("./pages/Home"));
 
 function StartupScreen() {
-  return <div className="startup-screen" aria-live="polite"><span className="startup-orbit" /><p>Preparing your adventure…</p></div>;
+  const { t } = useLocale();
+  return <div className="skeleton-shell startup-skeleton" aria-live="polite"><header className="skeleton-header"><span className="skeleton-brand-mark" /><b>{t("brand.name")}</b><span className="skeleton-header-line" /></header><main className="skeleton-main"><section className="skeleton-welcome"><div><span className="skeleton-kicker" /><span className="skeleton-title" /><span className="skeleton-copy" /></div><span className="skeleton-orb" /></section><section className="skeleton-card-grid"><i /><i /><i /></section><p>{t("common.loading")}</p></main></div>;
 }
 
 function AppEntry() {
   const auth = useAuth();
   const { isAuthenticated } = auth;
+  useEffect(() => { const timer = window.setTimeout(() => { void import("./pages/Home"); }, 400); return () => window.clearTimeout(timer); }, []);
   if (!isAuthenticated) return <LandingPage />;
   return <Suspense fallback={<StartupScreen />}><AuthenticatedAdventure auth={auth} /></Suspense>;
 }
