@@ -21,6 +21,6 @@
 - [x] Write Vitest coverage for core learning, authorization, and localization helpers.
 - [x] Add a localized access-denied screen for unauthorized client navigation while retaining server-enforced permissions.
 - [x] Verify the responsive child and parent experiences visually and resolve console or build errors.
-- [ ] Perform a final signed-in child/dashboard acceptance pass after a parent-owned child profile is created; no artificial child data will be inserted for this check.
+- [ ] Perform a final signed-in child/dashboard acceptance pass after a real parent-owned child profile is created; no artificial child records will be inserted for this check.
 - [x] Write GitHub-ready README documentation with architecture, local setup, privacy model, and scope notes.
-- [ ] Create a private GitHub repository and push the tested project source.
+- [x] Create a private GitHub repository and push the tested project source.
