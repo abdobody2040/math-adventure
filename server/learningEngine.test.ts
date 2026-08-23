@@ -44,6 +44,20 @@ describe("learningEngine", () => {
     expect(question.correctAnswer).toBe("1/2:2/4|1/3:2/6");
   });
 
+  it("provides structured visual options for illustrated selection activities", () => {
+    const question = generateQuestion("fraction-concepts", 2, "visual-1");
+    expect(question.presentation.interaction).toBe("visual");
+    expect(question.presentation.visualOptions).toHaveLength(4);
+    expect(question.presentation.visualOptions?.map(option => option.key)).toContain(question.correctAnswer);
+  });
+
+  it("serializes ordering answers in the deterministic canonical sequence", () => {
+    const question = generateQuestion("number-sequences", 2, "order-1");
+    expect(question.presentation.interaction).toBe("ordering");
+    expect(question.correctAnswer.split(",")).toHaveLength(4);
+    expect(question.presentation.choices).toHaveLength(4);
+  });
+
   it("recommends a change in learning action from child performance signals", () => {
     expect(recommendAdaptiveNext({ attempts: 4, correctAnswers: 1, mastery: 20, responseTimeMs: 9000, usedHint: true }).action).toBe("remediate");
     expect(recommendAdaptiveNext({ attempts: 8, correctAnswers: 5, mastery: 48, responseTimeMs: 10000, usedHint: false }).action).toBe("practice");

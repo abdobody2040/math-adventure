@@ -62,3 +62,4 @@
 - [ ] Make server-selected adaptive activity override fixed client-requested skills when a remediation or advancement path is indicated.
 - [ ] Add regression tests proving adaptive recommendations change the actual next skill, activity, and difficulty.
 - [ ] Implement a dedicated visual-selection interaction that consumes visualOptions rather than the generic answer grid, and cover visual, ordering, and matching answer serialization with regression tests.
+- [ ] Refactor visual question rendering so LessonExperience does not also emit the hidden generic answer-grid branch, and add client-side serialization regressions for ordering, matching, and visual selections.
