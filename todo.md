@@ -54,10 +54,11 @@
 - [ ] Add offline progress queuing, secure sync, and duplicate-reward conflict prevention.
 - [ ] Add end-to-end, accessibility, rate-limit, and performance audit coverage for the completed PRD flows.
 - [ ] Implement real boss-question templates and boss-session generation, then cover them with gameplay tests.
-- [ ] Build distinct answer interactions for ordering, matching, and visual-selection formats instead of generic answer buttons.
+- [x] Build distinct answer interactions for ordering, matching, and visual-selection formats instead of generic answer buttons.
 - [ ] Make the server choose the next adaptive skill, activity, and difficulty; remove the fixed client difficulty path.
 - [ ] Calculate and persist recent-performance metrics for adaptive decisions and test their effect on selected next activity and difficulty.
-- [ ] Implement true matching and visual-selection mechanics backed by dedicated presentation data instead of styled generic buttons.
+- [x] Implement true matching and visual-selection mechanics backed by dedicated presentation data instead of styled generic buttons.
 - [ ] Create dedicated boss-question templates and content rather than relabeling normal skill questions.
 - [ ] Make server-selected adaptive activity override fixed client-requested skills when a remediation or advancement path is indicated.
 - [ ] Add regression tests proving adaptive recommendations change the actual next skill, activity, and difficulty.
+- [ ] Implement a dedicated visual-selection interaction that consumes visualOptions rather than the generic answer grid, and cover visual, ordering, and matching answer serialization with regression tests.

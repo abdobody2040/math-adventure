@@ -76,7 +76,7 @@ function RewardShelf({ child }: { child: any }) {
   return <section className="reward-shelf"><div className="section-title"><div><p>{t("rewards.collection")}</p><h2>{t("rewards.companions")}</h2></div><Backpack size={20} /></div><div className="reward-grid">{(data?.petCatalog ?? []).map((pet: any) => <article key={pet.key}><span className="pet-orb">{pet.key === "pico-owl" ? "◉" : "✦"}</span><b>{t(pet.titleKey)}</b><small>{t(pet.descriptionKey)}</small><button disabled={ownedPets.has(pet.key) || unlock.isPending} onClick={() => unlock.mutate({ childId: child.id, petKey: pet.key })}>{ownedPets.has(pet.key) ? t("rewards.unlocked") : `${number(pet.unlockCoins)} ${t("dashboard.coins")}`}</button></article>)}</div><div className="cosmetic-row">{(data?.catalog ?? []).map((item: any) => <button key={item.key} disabled={ownedItems.has(item.key) || redeem.isPending} onClick={() => redeem.mutate({ childId: child.id, itemKey: item.key })}><span>{item.key === "star-cape" ? "✧" : item.key === "mint-trail" ? "⌁" : "▣"}</span><b>{t(item.titleKey)}</b><small>{ownedItems.has(item.key) ? t("rewards.unlocked") : `${number(item.costCoins)} ${t("dashboard.coins")}`}</small></button>)}</div></section>;
 }
 
-function ChildDashboard({ child, dashboard, curriculum, setScreen, startLesson }: { child: any; dashboard: any; curriculum: any; setScreen: (screen: Screen) => void; startLesson: (skillKey: string, battle?: boolean) => void }) {
+function ChildDashboard({ child, dashboard, curriculum, setScreen, startLesson, startBoss }: { child: any; dashboard: any; curriculum: any; setScreen: (screen: Screen) => void; startLesson: (skillKey: string, battle?: boolean) => void; startBoss: (worldKey: string) => void }) {
   const { t, number } = useLocale();
   const currentSkill = dashboard?.recommendationSkillKey ?? "count-to-20";
   const latestAchievement = dashboard?.achievements?.[dashboard.achievements.length - 1];
@@ -88,7 +88,7 @@ function ChildDashboard({ child, dashboard, curriculum, setScreen, startLesson }
       <article className="focus-card"><div className="card-heading"><span className="card-icon sky"><WandSparkles size={19} /></span><div><p>{t("dashboard.skillFocus")}</p><h3>{t(`skills.${skillKeyToTranslation(currentSkill)}`)}</h3></div></div><p>{t(dashboard?.recommendationKey ?? "recommendations.startAdventure")}</p><button className="text-action" onClick={() => startLesson(currentSkill)}>{t("common.start")}<ArrowRight size={16} /></button></article>
       <article className="badge-card"><div className="card-heading"><span className="card-icon sun"><Award size={19} /></span><div><p>{t("dashboard.latestBadge")}</p><h3>{latestAchievement ? t(`achievements.${achievementKeyToTranslation(latestAchievement)}.title`) : t("dashboard.noBadge")}</h3></div></div><p>{latestAchievement ? t(`achievements.${achievementKeyToTranslation(latestAchievement)}.description`) : t("lesson.feedback")}</p><span className="badge-spark"><Sparkles size={26} /></span></article>
     </section>
-    <section className="quick-actions"><button onClick={() => setScreen("map")}><Compass size={19} /><span><b>{t("dashboard.exploreMap")}</b><small>{curriculum?.worlds?.length ?? 3} {t("map.skills")}</small></span><ArrowRight size={17} /></button><button onClick={() => startLesson("boss:number-valley", true)}><Swords size={19} /><span><b>{t("dashboard.startBattle")}</b><small>{t("lesson.battleIntro")}</small></span><ArrowRight size={17} /></button></section>
+    <section className="quick-actions"><button onClick={() => setScreen("map")}><Compass size={19} /><span><b>{t("dashboard.exploreMap")}</b><small>{curriculum?.worlds?.length ?? 3} {t("map.skills")}</small></span><ArrowRight size={17} /></button><button onClick={() => startBoss((dashboard?.worldProgress ?? []).find((world: any) => world.isUnlocked)?.worldKey ?? "number-valley")}><Swords size={19} /><span><b>{t("dashboard.startBattle")}</b><small>{t("lesson.battleIntro")}</small></span><ArrowRight size={17} /></button></section>
     <RewardShelf child={child} />
   </main>;
 }
@@ -101,13 +101,36 @@ function achievementKeyToTranslation(key: string) {
   return ({ "first-spark": "firstSpark", "three-day-streak": "threeDayStreak", "number-explorer": "numberExplorer" } as Record<string, string>)[key] ?? "firstSpark";
 }
 
-function AdventureMap({ curriculum, childDashboard, startLesson }: { curriculum: any; childDashboard: any; startLesson: (skillKey: string) => void }) {
+function AdventureMap({ curriculum, childDashboard, startLesson, startBoss }: { curriculum: any; childDashboard: any; startLesson: (skillKey: string) => void; startBoss: (worldKey: string) => void }) {
   const { t, number } = useLocale();
   const progress = new Map<string, any>((childDashboard?.skillProgress ?? []).map((item: any) => [item.skillKey, item]));
   const worldProgress = new Map<string, any>((childDashboard?.worldProgress ?? []).map((item: any) => [item.worldKey, item]));
   return <main className="app-main map-page"><section className="map-heading"><p className="eyebrow"><Compass size={15} />{t("map.eyebrow")}</p><h1>{t("map.title")}</h1><p>{t("map.description")}</p></section><section className="world-trail">{curriculum?.worlds?.map((world: any, worldIndex: number) => {
     const WorldIcon = iconForWorld(world.key); const isLocked = !worldProgress.get(world.key)?.isUnlocked; const worldSkills = curriculum.skills.filter((skill: any) => skill.worldKey === world.key);
-    return <article className={`world-panel world-${world.accent} ${isLocked ? "is-locked" : ""}`} key={world.key}><div className="world-panel-top"><span className="world-icon"><WorldIcon size={25} /></span><span><p>{number(world.order).padStart(2, "0")}</p><h2>{t(world.nameKey)}</h2></span>{isLocked ? <span className="locked-chip"><LockKeyhole size={14} />{t("common.locked")}</span> : <span className="ready-chip"><Check size={14} />{t("map.ready")}</span>}</div><p className="world-description">{t(world.descriptionKey)}</p><div className="skill-nodes">{worldSkills.map((skill: any, index: number) => { const item = progress.get(skill.key); const mastery = item?.mastery ?? 0; return <button disabled={isLocked} onClick={() => startLesson(skill.key)} className={`skill-node ${mastery >= 80 ? "is-mastered" : ""}`} key={skill.key}><span>{mastery >= 80 ? <Check size={15} /> : index + 1}</span><b>{t(`skills.${skillKeyToTranslation(skill.key)}`)}</b><small>{mastery ? `${number(mastery)}%` : t("common.start")}</small></button>; })}</div>{isLocked && <p className="world-lock-note"><LockKeyhole size={14} />{t("map.lockedDescription")}</p>}</article>; })}</section></main>;
+    return <article className={`world-panel world-${world.accent} ${isLocked ? "is-locked" : ""}`} key={world.key}><div className="world-panel-top"><span className="world-icon"><WorldIcon size={25} /></span><span><p>{number(world.order).padStart(2, "0")}</p><h2>{t(world.nameKey)}</h2></span>{isLocked ? <span className="locked-chip"><LockKeyhole size={14} />{t("common.locked")}</span> : <span className="ready-chip"><Check size={14} />{t("map.ready")}</span>}</div><p className="world-description">{t(world.descriptionKey)}</p><div className="skill-nodes">{worldSkills.map((skill: any, index: number) => { const item = progress.get(skill.key); const mastery = item?.mastery ?? 0; return <button disabled={isLocked} onClick={() => startLesson(skill.key)} className={`skill-node ${mastery >= 80 ? "is-mastered" : ""}`} key={skill.key}><span>{mastery >= 80 ? <Check size={15} /> : index + 1}</span><b>{t(`skills.${skillKeyToTranslation(skill.key)}`)}</b><small>{mastery ? `${number(mastery)}%` : t("common.start")}</small></button>; })}</div>{isLocked ? <p className="world-lock-note"><LockKeyhole size={14} />{t("map.lockedDescription")}</p> : <button className="secondary-button world-boss-button" onClick={() => startBoss(world.key)}><Swords size={16} /><span>{t("boss.title")}</span></button>}</article>; })}</section></main>;
+}
+
+function MatchingBoard({ presentation, disabled, onChange }: { presentation: any; disabled: boolean; onChange: (value: string | null) => void }) {
+  const { t } = useLocale();
+  const pairs = presentation.matchingPairs ?? [];
+  const [activeSource, setActiveSource] = useState<string | null>(null);
+  const [matches, setMatches] = useState<Record<string, string>>({});
+  useEffect(() => { setActiveSource(null); setMatches({}); onChange(null); }, [presentation, onChange]);
+  const selectTarget = (target: string) => {
+    if (!activeSource || disabled) return;
+    const next = { ...matches, [activeSource]: target };
+    setMatches(next);
+    setActiveSource(null);
+    if (Object.keys(next).length === pairs.length) onChange(pairs.map((pair: any) => `${pair.source}:${next[pair.source]}`).join("|"));
+    else onChange(null);
+  };
+  const usedTargets = new Set(Object.values(matches));
+  return <div className="matching-board" aria-label={t("lesson.matchPrompt")}><div className="matching-column"><b>{t("lesson.matchPrompt")}</b>{pairs.map((pair: any) => <button type="button" key={pair.source} disabled={disabled} className={activeSource === pair.source ? "is-selected" : matches[pair.source] ? "is-matched" : ""} onClick={() => setActiveSource(pair.source)}>{pair.source}<small>{matches[pair.source] ?? "…"}</small></button>)}</div><div className="matching-column"><b>{t("lesson.question")}</b>{(presentation.matchTargets ?? []).map((target: string) => <button type="button" key={target} disabled={disabled || usedTargets.has(target)} className={usedTargets.has(target) ? "is-used" : ""} onClick={() => selectTarget(target)}>{target}</button>)}</div></div>;
+}
+
+function VisualSelection({ options, selected, disabled, onChange }: { options: { key: string; value: number; label: string }[]; selected: string | null; disabled: boolean; onChange: (value: string) => void }) {
+  const { t } = useLocale();
+  return <div className="visual-selection" role="radiogroup" aria-label={t("lesson.question")}>{options.map(option => <button type="button" role="radio" aria-checked={selected === option.key} key={option.key} disabled={disabled} className={selected === option.key ? "is-selected" : ""} onClick={() => onChange(option.key)}><span className="visual-selection-count" aria-hidden="true">{Array.from({ length: Math.min(10, option.value) }, (_, index) => <i key={index} />)}</span><b>{option.label}</b></button>)}</div>;
 }
 
 function LessonExperience({ childId, skillKey, isBattle, exit }: { childId: string; skillKey: string; isBattle: boolean; exit: () => void }) {
@@ -155,15 +178,18 @@ function LessonExperience({ childId, skillKey, isBattle, exit }: { childId: stri
   const prompt = useMemo(() => {
     if (!question?.presentation) return null;
     const item = question.presentation;
+    if (item.interaction === "visual") return <>{item.kind === "count" ? <div className="star-count">{Array.from({ length: item.amount }, (_, index) => <Sparkles key={index} size={29} />)}</div> : item.kind === "fraction" ? <div className="fraction-visual"><b>{number(item.visual?.numerator ?? 1)}</b><i /><b>{number(item.visual?.denominator ?? 2)}</b></div> : <div className="shape-visual">△</div>}<h2>{item.kind === "count" ? t("lesson.countPrompt") : item.kind === "fraction" ? t("lesson.fractionPrompt") : t("lesson.geometryPrompt")}</h2><VisualSelection options={item.visualOptions ?? []} selected={selected} disabled={Boolean(result)} onChange={setSelected} /></>;
+    if (item.kind === "count" && item.interaction === "visual") return <><div className="star-count">{Array.from({ length: item.amount }, (_, index) => <Sparkles key={index} size={29} />)}</div><h2>{t("lesson.countPrompt")}</h2><VisualSelection options={item.visualOptions ?? []} selected={selected} disabled={Boolean(result)} onChange={setSelected} /></>;
     if (item.kind === "count") return <><div className="star-count">{Array.from({ length: item.amount }, (_, index) => <Sparkles key={index} size={29} />)}</div><h2>{t("lesson.countPrompt")}</h2></>;
     if (item.kind === "compare") return <><div className="math-expression"><b>{number(item.left)}</b><span>?</span><b>{number(item.right)}</b></div><h2>{t("lesson.comparePrompt")}</h2></>;
     if (item.kind === "sequence") return <><div className="math-expression sequence">{item.values.map((value: number | null, index: number) => <b key={index}>{value === null ? "?" : number(value)}</b>)}</div><h2>{t("lesson.sequencePrompt")}</h2></>;
+    if (item.kind === "fraction" && item.interaction === "matching") return <><div className="fraction-visual"><b>{number(item.visual?.numerator ?? 1)}</b><i /><b>{number(item.visual?.denominator ?? 2)}</b></div><h2>{t("lesson.matchPrompt")}</h2><MatchingBoard presentation={item} disabled={Boolean(result)} onChange={setSelected} /></>;
     if (item.kind === "fraction") return <><div className="fraction-visual"><b>{number(item.visual?.numerator ?? 1)}</b><i /><b>{number(item.visual?.denominator ?? 2)}</b></div><h2>{t("lesson.fractionPrompt")}</h2></>;
     if (item.kind === "logic") return <><div className="logic-visual"><span>{item.visual?.shape === "pattern" ? "● ▲ ● ▲" : "● ▲ ▲ ●"}</span></div><h2>{t("lesson.logicPrompt")}</h2></>;
     if (item.kind === "geometry") return <><div className="shape-visual">△</div><h2>{t("lesson.geometryPrompt")}</h2></>;
     const operator = item.kind === "addition" ? "+" : item.kind === "subtraction" ? "−" : item.kind === "multiplication" ? "×" : item.kind === "division" ? "÷" : "+";
     return <><div className="math-expression"><b>{number(item.left)}</b><span>{operator}</span><b>{number(item.right)}</b><span>=</span><b>?</b></div><h2>{item.kind === "wordProblem" ? t("lesson.wordProblemPrompt") : t("lesson.equationPrompt")}</h2></>;
-  }, [number, question?.presentation, t]);
+  }, [number, question?.presentation, result, selected, t]);
   const answer = () => {
     if (!selected || !question || result) return;
     const payload = { childId, questionSessionId: question.questionSessionId, answer: selected, responseTimeMs: Date.now() - startedAt.current, usedHint: showHint };
@@ -274,7 +300,7 @@ function AppExperience({ auth }: { auth: ReturnType<typeof useAuth> }) {
   if (screen === "lesson" || screen === "battle") return <LessonExperience childId={activeChild.id} skillKey={lessonSkill} isBattle={isBattle} exit={exitLesson} />;
   if (screen === "boss") return <BossExperience childId={activeChild.id} worldKey={bossWorld} exit={exitLesson} />;
   const retryProtectedData = () => { refetchDashboard(); refetchCurriculum(); };
-  return <div className="app-shell"><Navigation screen={screen} setScreen={setScreen} onSignOut={logout} isAdmin={user?.role === "admin"} installPrompt={installPrompt} onInstall={requestInstall} />{dashboardLoading ? <AdventureLoadingSkeleton /> : (dashboardError || curriculumError) ? <AppFailure retry={retryProtectedData} /> : <>{screen === "home" && <ChildDashboard child={activeChild} dashboard={dashboard} curriculum={curriculum} setScreen={setScreen} startLesson={beginLesson} />}{screen === "map" && <AdventureMap curriculum={curriculum} childDashboard={dashboard} startLesson={beginLesson} />}{screen === "parent" && <ParentDashboard child={activeChild} dashboard={dashboard} curriculum={curriculum} onEdit={() => setEditing(true)} />}{screen === "admin" && (user?.role === "admin" ? <AdminPanel curriculum={curriculum} /> : <AccessDenied returnHome={() => setScreen("home")} />)}</>}{editing && <ProfileEditor child={activeChild} close={() => setEditing(false)} saved={() => { refetchChildren(); refetchDashboard(); }} />}</div>;
+  return <div className="app-shell"><Navigation screen={screen} setScreen={setScreen} onSignOut={logout} isAdmin={user?.role === "admin"} installPrompt={installPrompt} onInstall={requestInstall} />{dashboardLoading ? <AdventureLoadingSkeleton /> : (dashboardError || curriculumError) ? <AppFailure retry={retryProtectedData} /> : <>{screen === "home" && <ChildDashboard child={activeChild} dashboard={dashboard} curriculum={curriculum} setScreen={setScreen} startLesson={beginLesson} startBoss={beginBoss} />}{screen === "map" && <AdventureMap curriculum={curriculum} childDashboard={dashboard} startLesson={beginLesson} startBoss={beginBoss} />}{screen === "parent" && <ParentDashboard child={activeChild} dashboard={dashboard} curriculum={curriculum} onEdit={() => setEditing(true)} />}{screen === "admin" && (user?.role === "admin" ? <AdminPanel curriculum={curriculum} /> : <AccessDenied returnHome={() => setScreen("home")} />)}</>}{editing && <ProfileEditor child={activeChild} close={() => setEditing(false)} saved={() => { refetchChildren(); refetchDashboard(); }} />}</div>;
 }
 
 function StandaloneAdventure() {

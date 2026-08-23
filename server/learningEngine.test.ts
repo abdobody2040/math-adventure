@@ -36,6 +36,14 @@ describe("learningEngine", () => {
     expect(generateQuestion("logical-reasoning", 2, "math-4").presentation.interaction).toBe("trueFalse");
   });
 
+  it("creates a structured, canonical pair-matching question", () => {
+    const question = generateQuestion("equivalent-fractions", 2, "match-1");
+    expect(question.presentation.interaction).toBe("matching");
+    expect(question.presentation.matchingPairs).toEqual([{ source: "1/2", target: "2/4" }, { source: "1/3", target: "2/6" }]);
+    expect(question.presentation.matchTargets).toHaveLength(2);
+    expect(question.correctAnswer).toBe("1/2:2/4|1/3:2/6");
+  });
+
   it("recommends a change in learning action from child performance signals", () => {
     expect(recommendAdaptiveNext({ attempts: 4, correctAnswers: 1, mastery: 20, responseTimeMs: 9000, usedHint: true }).action).toBe("remediate");
     expect(recommendAdaptiveNext({ attempts: 8, correctAnswers: 5, mastery: 48, responseTimeMs: 10000, usedHint: false }).action).toBe("practice");
