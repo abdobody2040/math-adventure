@@ -1,0 +1,62 @@
+export type Locale = "en" | "ar";
+
+interface Dictionary {
+  [key: string]: string | Dictionary;
+}
+
+const en: Dictionary = {
+  brand: { name: "Math Adventure", tagline: "Learn. Explore. Level up." },
+  common: { continue: "Continue", back: "Back", close: "Close", save: "Save", loading: "Preparing your adventure…", error: "Something went wrong. Please try again.", retry: "Try again", minutes: "min", of: "of", signIn: "Parent sign in", signOut: "Sign out", parentView: "Parent view", childView: "Child view", locked: "Locked", complete: "Complete", start: "Start", edit: "Edit", welcome: "Welcome", language: "Change language", accessDenied: "This space is protected", accessDeniedDetail: "This account does not have permission to open this page.", returnHome: "Return home" },
+  landing: { eyebrow: "Made for little explorers", title: "Math becomes an adventure they want to return to.", description: "Short, encouraging learning quests with a clear, private view of progress for parents.", primaryCta: "Start a parent account", safety: "Private by design", safetyDetail: "No chat, public profiles, or stranger contact.", featureOne: "Five-minute missions", featureTwo: "Gentle feedback", featureThree: "Clear parent insights" },
+  navigation: { home: "Home", map: "Adventure map", parent: "Parent dashboard", battle: "Math battle" },
+  onboarding: { eyebrow: "Set up your explorer", title: "Create a child profile", description: "A parent controls this profile and can update or remove it at any time.", name: "Child’s display name", age: "Age", grade: "Grade", avatar: "Choose an avatar", gradePlaceholder: "For example: Grade 2", create: "Create adventure" },
+  dashboard: { greeting: "Ready for a bright little win?", continueTitle: "Continue your adventure", continueDescription: "A short mission is waiting in Number Valley.", dailyQuest: "Daily quest", questDescription: "Answer {target} questions today", progress: "{progress} of {target}", skillFocus: "Your next focus", exploreMap: "Explore map", startBattle: "Start a battle", level: "Level {level}", streak: "{count}-day streak", xp: "XP", coins: "Coins", latestBadge: "Latest badge", noBadge: "Your first badge is close" },
+  worlds: { numberValley: { name: "Number Valley", description: "Discover patterns, counting, and number sense." }, additionForest: { name: "Addition Forest", description: "Grow confidence by combining numbers." }, subtractionDesert: { name: "Subtraction Desert", description: "Find what remains with calm, clear steps." } },
+  skills: { countTo20: "Counting to 20", numberRecognition: "Number recognition", compareNumbers: "Compare numbers", numberSequences: "Number sequences", addWithin10: "Add within 10", makeTen: "Make ten", addWithin20: "Add within 20", subtractWithin10: "Subtract within 10", subtractWithin20: "Subtract within 20", numberBonds: "Number bonds" },
+  map: { eyebrow: "Choose your path", title: "Adventure map", description: "Every small step builds a stronger math mind.", skills: "skills", ready: "Ready to explore", worldComplete: "World complete", lockedDescription: "Complete the earlier world to unlock this path." },
+  lesson: { eyebrow: "Mini lesson", question: "Pick the best answer", countPrompt: "How many stars are here?", comparePrompt: "Choose the sign that makes this true.", sequencePrompt: "Which number comes next?", equationPrompt: "Solve this problem.", hint: "Need a hint?", hintText: "Take your time. Look for the numbers you know first.", check: "Check answer", next: "Next question", finish: "Return home", correct: "Wonderful work!", incorrect: "A brave try. Let’s learn from it.", earned: "+{xp} XP · +{coins} coins", feedback: "Immediate feedback helps you learn", sessionIntro: "A focused six-minute practice session", battleIntro: "Use your number power to lower the gentle guardian’s shield.", shield: "Shield", battleWin: "You helped the forest feel bright again!", lessonWin: "You took a meaningful step today." },
+  feedback: { countExplanation: "Count each star slowly, one at a time.", compareExplanation: "Look at both numbers. The open side points toward the greater number.", sequenceExplanation: "Notice how the numbers grow by one each time.", additionExplanation: "Put the two groups together, then count the total.", subtractionExplanation: "Start with the larger number and take away the smaller number." },
+  parent: { eyebrow: "Parent space", title: "Learning progress, without the noise.", childSelect: "Viewing progress for", summary: "This week’s picture", learningTime: "Learning time", questions: "Questions", accuracy: "Accuracy", streak: "Streak", skillProgress: "Skill progress", activity: "Recent activity", recommendation: "Practice recommendation", recommendationDetail: "A little focused practice in {skill} can build confidence.", noActivity: "No learning activity yet. Start a mini lesson to see progress here.", privacy: "Private child data", privacyDetail: "Only the signed-in parent can view or change this child profile.", manageProfile: "Manage profile", emptyProgress: "Progress appears after the first question." },
+  achievements: { title: "Achievements", firstSpark: { title: "First spark", description: "Completed a first question." }, threeDayStreak: { title: "Steady explorer", description: "Practised on three different days." }, numberExplorer: { title: "Number explorer", description: "Reached strong counting mastery." } },
+  quests: { dailyFive: "Five bright answers" },
+  recommendations: { practiceSkill: "A gentle practice session will help your next skill grow.", startAdventure: "Start with a little Number Valley exploration." },
+  rewards: { correctAnswer: "Correct answer", braveTry: "Brave try" },
+  offline: { online: "Adventure synced", offline: "Offline mode", offlineDetail: "Your saved app shell and learning guide are ready. Connect to save new progress." },
+  pwa: { install: "Install app", installed: "App installed" },
+  admin: { seed: "Load starter content", title: "Content studio", description: "Admin-only controls for the published starter curriculum.", curriculum: "Starter curriculum", worlds: "Worlds", skills: "Skills", lessons: "Lessons", saved: "Starter content is ready." },
+};
+
+const ar: Dictionary = {
+  brand: { name: "مغامرة الرياضيات", tagline: "تعلّم. استكشف. تقدّم." },
+  common: { continue: "متابعة", back: "رجوع", close: "إغلاق", save: "حفظ", loading: "نُجهّز مغامرتك…", error: "حدث أمر غير متوقع. حاول مرة أخرى.", retry: "حاول مجددًا", minutes: "دقائق", of: "من", signIn: "دخول الوالد", signOut: "تسجيل الخروج", parentView: "عرض الوالد", childView: "عرض الطفل", locked: "مقفل", complete: "مكتمل", start: "ابدأ", edit: "تعديل", welcome: "مرحبًا", language: "تغيير اللغة", accessDenied: "هذه المساحة محمية", accessDeniedDetail: "هذا الحساب لا يملك صلاحية فتح هذه الصفحة.", returnHome: "العودة للرئيسية" },
+  landing: { eyebrow: "مصممة للمستكشفين الصغار", title: "الرياضيات تصبح مغامرة يريد الطفل العودة إليها.", description: "مهام تعليمية قصيرة ومشجعة مع رؤية واضحة وخاصة للتقدم للوالدين.", primaryCta: "ابدأ حساب الوالد", safety: "الخصوصية أساس التصميم", safetyDetail: "لا دردشة، ولا ملفات عامة، ولا تواصل مع الغرباء.", featureOne: "مهام من خمس دقائق", featureTwo: "تغذية راجعة لطيفة", featureThree: "رؤى واضحة للوالدين" },
+  navigation: { home: "الرئيسية", map: "خريطة المغامرة", parent: "لوحة الوالد", battle: "معركة الرياضيات" },
+  onboarding: { eyebrow: "جهّز المستكشف", title: "أنشئ ملف الطفل", description: "يدير الوالد هذا الملف ويمكنه تعديله أو حذفه في أي وقت.", name: "اسم الطفل المعروض", age: "العمر", grade: "الصف", avatar: "اختر شخصية", gradePlaceholder: "مثال: الصف الثاني", create: "إنشاء المغامرة" },
+  dashboard: { greeting: "هل أنت مستعد لفوز صغير ومشرق؟", continueTitle: "تابع مغامرتك", continueDescription: "مهمة قصيرة بانتظارك في وادي الأعداد.", dailyQuest: "مهمة اليوم", questDescription: "أجب عن {target} أسئلة اليوم", progress: "{progress} من {target}", skillFocus: "تركيزك التالي", exploreMap: "استكشف الخريطة", startBattle: "ابدأ معركة", level: "المستوى {level}", streak: "سلسلة {count} أيام", xp: "نقاط خبرة", coins: "عملات", latestBadge: "أحدث شارة", noBadge: "شارتك الأولى قريبة" },
+  worlds: { numberValley: { name: "وادي الأعداد", description: "اكتشف الأنماط والعد وحس الأرقام." }, additionForest: { name: "غابة الجمع", description: "نمِّ ثقتك بضم الأعداد." }, subtractionDesert: { name: "صحراء الطرح", description: "اكتشف ما تبقى بخطوات هادئة وواضحة." } },
+  skills: { countTo20: "العد حتى ٢٠", numberRecognition: "تمييز الأعداد", compareNumbers: "مقارنة الأعداد", numberSequences: "تسلسلات الأعداد", addWithin10: "الجمع حتى ١٠", makeTen: "تكوين العشرة", addWithin20: "الجمع حتى ٢٠", subtractWithin10: "الطرح حتى ١٠", subtractWithin20: "الطرح حتى ٢٠", numberBonds: "روابط الأعداد" },
+  map: { eyebrow: "اختر طريقك", title: "خريطة المغامرة", description: "كل خطوة صغيرة تبني عقلًا رياضيًا أقوى.", skills: "مهارات", ready: "جاهز للاستكشاف", worldComplete: "العالم مكتمل", lockedDescription: "أكمل العالم السابق لفتح هذا الطريق." },
+  lesson: { eyebrow: "درس صغير", question: "اختر الإجابة الأنسب", countPrompt: "كم نجمة تراها هنا؟", comparePrompt: "اختر الرمز الذي يجعل العبارة صحيحة.", sequencePrompt: "ما العدد التالي؟", equationPrompt: "حل هذه المسألة.", hint: "هل تحتاج تلميحًا؟", hintText: "خذ وقتك. ابحث أولًا عن الأعداد التي تعرفها.", check: "تحقق من الإجابة", next: "السؤال التالي", finish: "العودة للرئيسية", correct: "عمل رائع!", incorrect: "محاولة شجاعة. لنتعلم منها.", earned: "+{xp} نقطة خبرة · +{coins} عملات", feedback: "التغذية الراجعة السريعة تساعدك على التعلم", sessionIntro: "جلسة تدريب مركزة لمدة ست دقائق", battleIntro: "استخدم قوة الأرقام لتخفض درع الحارس اللطيف.", shield: "الدرع", battleWin: "ساعدت الغابة على أن تصبح مشرقة من جديد!", lessonWin: "خطوت اليوم خطوة مهمة." },
+  feedback: { countExplanation: "عد كل نجمة ببطء، واحدة تلو الأخرى.", compareExplanation: "انظر إلى العددين. جهة الرمز المفتوحة تشير إلى العدد الأكبر.", sequenceExplanation: "لاحظ أن الأعداد تزيد بمقدار واحد في كل مرة.", additionExplanation: "اجمع المجموعتين معًا ثم عد المجموع.", subtractionExplanation: "ابدأ بالعدد الأكبر ثم اطرح العدد الأصغر." },
+  parent: { eyebrow: "مساحة الوالد", title: "تقدم تعليمي واضح، بلا ضوضاء.", childSelect: "عرض تقدم", summary: "ملخص هذا الأسبوع", learningTime: "وقت التعلم", questions: "الأسئلة", accuracy: "الدقة", streak: "السلسلة", skillProgress: "تقدم المهارات", activity: "النشاط الأخير", recommendation: "توصية تدريب", recommendationDetail: "بعض التدريب المركز على {skill} قد يبني الثقة.", noActivity: "لا يوجد نشاط تعليمي بعد. ابدأ درسًا صغيرًا لرؤية التقدم هنا.", privacy: "بيانات الطفل خاصة", privacyDetail: "الوالد المسجل فقط يمكنه عرض ملف هذا الطفل أو تعديله.", manageProfile: "إدارة الملف", emptyProgress: "يظهر التقدم بعد السؤال الأول." },
+  achievements: { title: "الإنجازات", firstSpark: { title: "الشرارة الأولى", description: "أكمل السؤال الأول." }, threeDayStreak: { title: "مستكشف ثابت", description: "تدرّب في ثلاثة أيام مختلفة." }, numberExplorer: { title: "مستكشف الأعداد", description: "وصل إلى إتقان قوي في العد." } },
+  quests: { dailyFive: "خمس إجابات مشرقة" },
+  recommendations: { practiceSkill: "تدريب قصير ولطيف سيساعد مهارتك التالية على النمو.", startAdventure: "ابدأ قليلًا من الاستكشاف في وادي الأعداد." },
+  rewards: { correctAnswer: "إجابة صحيحة", braveTry: "محاولة شجاعة" },
+  offline: { online: "المغامرة متزامنة", offline: "وضع عدم الاتصال", offlineDetail: "واجهة التطبيق ودليل التعلم المحفوظان جاهزان. اتصل بالإنترنت لحفظ التقدم الجديد." },
+  pwa: { install: "ثبّت التطبيق", installed: "تم تثبيت التطبيق" },
+  admin: { seed: "تحميل المحتوى الأولي", title: "استديو المحتوى", description: "ضوابط المدير فقط للمنهج الأولي المنشور.", curriculum: "المنهج الأولي", worlds: "العوالم", skills: "المهارات", lessons: "الدروس", saved: "المحتوى الأولي جاهز." },
+};
+
+const dictionaries: Record<Locale, Dictionary> = { en, ar };
+
+export function translate(locale: Locale, key: string, values?: Record<string, string | number>) {
+  const value = key.split(".").reduce<string | Dictionary | undefined>((current, segment) => {
+    if (typeof current === "string" || !current) return undefined;
+    return current[segment];
+  }, dictionaries[locale]);
+  const message = typeof value === "string" ? value : key;
+  return Object.entries(values ?? {}).reduce((result, [name, item]) => result.replaceAll(`{${name}}`, String(item)), message);
+}
+
+export const formatNumber = (locale: Locale, value: number) => new Intl.NumberFormat(locale === "ar" ? "ar-EG" : "en-US").format(value);

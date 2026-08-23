@@ -1,0 +1,26 @@
+# Project TODO
+
+- [x] Define child-safe domain model, access-boundary rules, and seeded starter curriculum for three worlds and 8–12 foundational skills.
+- [x] Add normalized parent, child, progress, attempts, rewards, achievements, and activity database tables with protected server-side access.
+- [x] Build authenticated parent onboarding and child-profile setup with age/grade and avatar selection.
+- [x] Build the mobile-first child home dashboard with avatar, level, XP, coins, streak, daily quest, and continue-learning action.
+- [x] Build the three-world adventure map with visible progression and skill nodes.
+- [x] Build short interactive lessons, a deterministic question engine, immediate encouraging feedback, and persisted learning progress.
+- [x] Build healthy gamification: XP, coins, levels, streaks, achievements, and solo math battles.
+- [x] Connect adventure-map unlocking to persisted world progress and unlock later worlds from real mastery milestones.
+- [x] Replace random question generation with a deterministic, template-driven session generator.
+- [x] Build the parent dashboard with child learning time, accuracy, skill performance, activity, and practice recommendations.
+- [x] Add role-gated admin content management for reviewing seeded learning content.
+- [x] Add complete English/Arabic localization, RTL layout support, and locale-aware number formatting without hard-coded interface strings.
+- [x] Add PWA manifest, install affordance, static learning-content caching, and offline-aware UI states.
+- [x] Track persisted learning-session duration and use it for parent learning-time insight.
+- [x] Verify the role-gated admin review screen for worlds, skills, and lessons is accessible only to administrators.
+- [x] Audit remaining interface copy to ensure every user-facing string is represented in English and Arabic localization resources.
+- [x] Add and verify a real PWA install prompt affordance alongside offline status behavior.
+- [x] Add loading, empty, error, and access-denied states across major workflows.
+- [x] Write Vitest coverage for core learning, authorization, and localization helpers.
+- [x] Add a localized access-denied screen for unauthorized client navigation while retaining server-enforced permissions.
+- [x] Verify the responsive child and parent experiences visually and resolve console or build errors.
+- [ ] Perform a final signed-in child/dashboard acceptance pass after a parent-owned child profile is created; no artificial child data will be inserted for this check.
+- [x] Write GitHub-ready README documentation with architecture, local setup, privacy model, and scope notes.
+- [ ] Create a private GitHub repository and push the tested project source.

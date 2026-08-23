@@ -1,0 +1,10 @@
+{
+  "name": "Math Adventure",
+  "short_name": "Math Adventure",
+  "description": "A private, encouraging math adventure for young learners and their parents.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fffaf2",
+  "theme_color": "#fffaf2",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
