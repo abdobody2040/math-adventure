@@ -26,6 +26,8 @@ import { masteryFrom, rewardForAttempt } from "./learningEngine";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let curriculumCache: { expiresAt: number; value: any } | null = null;
+const parentProfileCache = new Map<number, { expiresAt: number; profile: { id: string; userId: number } }>();
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
@@ -81,14 +83,19 @@ export async function seedStarterContent() {
   await db.insert(achievements).values(starterAchievements);
 }
 
-async function getOrCreateParentProfile(userId: number) {
+async function getOrCreateParentProfile(userId: number): Promise<{ id: string; userId: number }> {
+  const cached = parentProfileCache.get(userId);
+  if (cached && cached.expiresAt > Date.now()) return cached.profile;
   const db = await requireDb();
-  const existing = await db.select().from(parentProfiles).where(eq(parentProfiles.userId, userId)).limit(1);
-  if (existing[0]) return existing[0];
+  const existing = await db.select({ id: parentProfiles.id, userId: parentProfiles.userId }).from(parentProfiles).where(eq(parentProfiles.userId, userId)).limit(1);
+  if (existing[0]) {
+    parentProfileCache.set(userId, { profile: existing[0], expiresAt: Date.now() + 10 * 60 * 1000 });
+    return existing[0];
+  }
   const profile = { id: randomUUID(), userId };
   await db.insert(parentProfiles).values(profile);
-  const created = await db.select().from(parentProfiles).where(eq(parentProfiles.id, profile.id)).limit(1);
-  return created[0]!;
+  parentProfileCache.set(userId, { profile, expiresAt: Date.now() + 10 * 60 * 1000 });
+  return profile;
 }
 
 async function assertOwnedChild(userId: number, childId: string) {
@@ -177,54 +184,56 @@ export async function recordAnswer(userId: number, input: { childId: string; que
   const isCorrect = question.correctAnswer === input.answer;
   const now = new Date();
   const rewards = rewardForAttempt(isCorrect, input.responseTimeMs);
-  const progressRows = await db.select().from(skillProgress).where(and(eq(skillProgress.childId, child.id), eq(skillProgress.skillKey, question.skillKey))).limit(1);
+  const periodKey = dayKey(now);
+  const [progressRows, dailyQuestRows] = await Promise.all([
+    db.select().from(skillProgress).where(and(eq(skillProgress.childId, child.id), eq(skillProgress.skillKey, question.skillKey))).limit(1),
+    db.select().from(questProgress).where(and(eq(questProgress.childId, child.id), eq(questProgress.questKey, "daily-five"), eq(questProgress.periodKey, periodKey))).limit(1),
+  ]);
   const existing = progressRows[0];
   const attempts = (existing?.attempts ?? 0) + 1;
   const correctAnswers = (existing?.correctAnswers ?? 0) + (isCorrect ? 1 : 0);
   const mastery = masteryFrom(attempts, correctAnswers, input.responseTimeMs);
   const progressId = existing?.id ?? randomUUID();
-  await db.insert(skillProgress).values({ id: progressId, childId: child.id, skillKey: question.skillKey, attempts, correctAnswers, mastery, lastPracticedAt: now })
-    .onDuplicateKeyUpdate({ set: { attempts, correctAnswers, mastery, lastPracticedAt: now } });
-  await db.insert(questionAttempts).values({
-    id: randomUUID(), childId: child.id, sessionId: question.id, skillKey: question.skillKey, submittedAnswer: input.answer,
-    isCorrect, responseTimeMs: input.responseTimeMs, usedHint: input.usedHint,
-  });
   const nextStreak = calculateStreak(child.lastPracticeAt, child.streakDays, now);
   const xp = child.xp + rewards.xp;
   const coins = child.coins + rewards.coins;
   const level = Math.floor(xp / 100) + 1;
-  await db.update(childProfiles).set({ xp, coins, level, streakDays: nextStreak, lastPracticeAt: now }).where(eq(childProfiles.id, child.id));
   const currentSkill = skillByKey[question.skillKey];
   let newlyUnlockedWorldKey: string | null = null;
-  if (currentSkill) {
+  const worldWrites: Promise<unknown>[] = [];
+  if (currentSkill && mastery >= 60) {
     const worldSkills = starterSkills.filter(item => item.worldKey === currentSkill.worldKey).map(item => item.key);
     const allProgress = await db.select().from(skillProgress).where(eq(skillProgress.childId, child.id));
     const masteredWorld = worldSkills.length > 0 && worldSkills.every(key => (key === question.skillKey ? mastery : allProgress.find(item => item.skillKey === key)?.mastery ?? 0) >= 60);
     if (masteredWorld) {
-      await db.update(worldProgress).set({ stars: 3, isUnlocked: true }).where(and(eq(worldProgress.childId, child.id), eq(worldProgress.worldKey, currentSkill.worldKey)));
+      worldWrites.push(db.update(worldProgress).set({ stars: 3, isUnlocked: true }).where(and(eq(worldProgress.childId, child.id), eq(worldProgress.worldKey, currentSkill.worldKey))));
       const worldIndex = starterWorlds.findIndex(item => item.key === currentSkill.worldKey);
       const nextWorld = starterWorlds[worldIndex + 1];
       if (nextWorld) {
         newlyUnlockedWorldKey = nextWorld.key;
-        await db.update(worldProgress).set({ isUnlocked: true }).where(and(eq(worldProgress.childId, child.id), eq(worldProgress.worldKey, nextWorld.key)));
+        worldWrites.push(db.update(worldProgress).set({ isUnlocked: true }).where(and(eq(worldProgress.childId, child.id), eq(worldProgress.worldKey, nextWorld.key))));
       }
     }
   }
-  if (rewards.xp) await db.insert(rewardTransactions).values({ id: randomUUID(), childId: child.id, kind: "xp", amount: rewards.xp, reasonKey: isCorrect ? "rewards.correctAnswer" : "rewards.braveTry" });
-  if (rewards.coins) await db.insert(rewardTransactions).values({ id: randomUUID(), childId: child.id, kind: "coins", amount: rewards.coins, reasonKey: "rewards.correctAnswer" });
-  const periodKey = dayKey(now);
-  const dailyQuestRows = await db.select().from(questProgress).where(and(eq(questProgress.childId, child.id), eq(questProgress.questKey, "daily-five"), eq(questProgress.periodKey, periodKey))).limit(1);
   const quest = dailyQuestRows[0];
   const questValue = Math.min(starterQuest.target, (quest?.progress ?? 0) + 1);
-  await db.insert(questProgress).values({ id: quest?.id ?? randomUUID(), childId: child.id, questKey: "daily-five", periodKey, progress: questValue, completedAt: questValue >= starterQuest.target ? now : null })
-    .onDuplicateKeyUpdate({ set: { progress: questValue, completedAt: questValue >= starterQuest.target ? now : null } });
   const unlocked = [] as string[];
   if (attempts === 1) unlocked.push("first-spark");
   if (nextStreak >= 3) unlocked.push("three-day-streak");
   if (mastery >= 80 && question.skillKey === "count-to-20") unlocked.push("number-explorer");
-  for (const achievementKey of unlocked) {
-    await db.insert(childAchievements).values({ id: randomUUID(), childId: child.id, achievementKey }).onDuplicateKeyUpdate({ set: { achievementKey } });
-  }
+  const writes: Promise<unknown>[] = [
+    db.insert(skillProgress).values({ id: progressId, childId: child.id, skillKey: question.skillKey, attempts, correctAnswers, mastery, lastPracticedAt: now }).onDuplicateKeyUpdate({ set: { attempts, correctAnswers, mastery, lastPracticedAt: now } }),
+    db.insert(questionAttempts).values({ id: randomUUID(), childId: child.id, sessionId: question.id, skillKey: question.skillKey, submittedAnswer: input.answer, isCorrect, responseTimeMs: input.responseTimeMs, usedHint: input.usedHint }),
+    db.update(childProfiles).set({ xp, coins, level, streakDays: nextStreak, lastPracticeAt: now }).where(eq(childProfiles.id, child.id)),
+    db.insert(questProgress).values({ id: quest?.id ?? randomUUID(), childId: child.id, questKey: "daily-five", periodKey, progress: questValue, completedAt: questValue >= starterQuest.target ? now : null }).onDuplicateKeyUpdate({ set: { progress: questValue, completedAt: questValue >= starterQuest.target ? now : null } }),
+    ...worldWrites,
+  ];
+  if (rewards.xp || rewards.coins) writes.push(db.insert(rewardTransactions).values([
+    ...(rewards.xp ? [{ id: randomUUID(), childId: child.id, kind: "xp" as const, amount: rewards.xp, reasonKey: isCorrect ? "rewards.correctAnswer" : "rewards.braveTry" }] : []),
+    ...(rewards.coins ? [{ id: randomUUID(), childId: child.id, kind: "coins" as const, amount: rewards.coins, reasonKey: "rewards.correctAnswer" }] : []),
+  ]));
+  unlocked.forEach(achievementKey => writes.push(db.insert(childAchievements).values({ id: randomUUID(), childId: child.id, achievementKey }).onDuplicateKeyUpdate({ set: { achievementKey } })));
+  await Promise.all(writes);
   return { isCorrect, rewards, mastery, level, xp, coins, streakDays: nextStreak, quest: { progress: questValue, target: starterQuest.target, completed: questValue >= starterQuest.target }, unlockedAchievementKeys: unlocked, newlyUnlockedWorldKey };
 }
 
@@ -258,6 +267,7 @@ export async function getChildDashboard(userId: number, childId: string) {
 }
 
 export async function getCurriculum() {
+  if (curriculumCache && curriculumCache.expiresAt > Date.now()) return curriculumCache.value;
   await seedStarterContent();
   const db = await requireDb();
   const [worldRows, skillRows, lessonRows] = await Promise.all([
@@ -265,5 +275,7 @@ export async function getCurriculum() {
     db.select().from(skills).where(eq(skills.isPublished, true)),
     db.select().from(lessons),
   ]);
-  return { worlds: worldRows.sort((a, b) => a.order - b.order), skills: skillRows.sort((a, b) => a.order - b.order), lessons: lessonRows };
+  const value = { worlds: worldRows.sort((a, b) => a.order - b.order), skills: skillRows.sort((a, b) => a.order - b.order), lessons: lessonRows };
+  curriculumCache = { value, expiresAt: Date.now() + 10 * 60 * 1000 };
+  return value;
 }

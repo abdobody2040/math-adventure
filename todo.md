@@ -34,3 +34,7 @@
 - [x] Generate a lightweight consistent character set of two girls and two boys for child avatar selection.
 - [x] Replace generic icon-led visual moments with lightweight custom illustrations or SVG scene elements while preserving accessibility labels.
 - [ ] Fix the mobile onboarding hero clipping and validate the revised mobile layout against the supplied screenshot.
+- [ ] Diagnose and fix the newly reported runtime error in the current application build.
+- [x] Reduce the real startup latency of the public route and verify the initial screen no longer lingers on a loading state.
+- [ ] Reproduce the reported runtime error in a fresh browser session and document its exact failing screen, request, or console message.
+- [ ] Run a fresh post-fix browser-console and network validation after the updated service worker is active.
