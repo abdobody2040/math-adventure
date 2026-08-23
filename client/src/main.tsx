@@ -9,6 +9,10 @@ import "./index.css";
 
 const queryClient = new QueryClient();
 
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").then(registration => registration.update()).catch(() => undefined);
+}
+
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({

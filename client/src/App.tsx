@@ -1,22 +1,19 @@
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
+import LandingPage from "@/pages/LandingPage";
+import { lazy, Suspense } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LocaleProvider } from "./contexts/LocaleContext";
-import Home from "./pages/Home";
+const AuthenticatedAdventure = lazy(() => import("./pages/Home"));
 
-function Router() {
-  // make sure to consider if you need authentication for certain routes
-  return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
-  );
+function StartupScreen() {
+  return <div className="startup-screen" aria-live="polite"><span className="startup-orbit" /><p>Preparing your adventure…</p></div>;
+}
+
+function AppEntry() {
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <LandingPage />;
+  return <Suspense fallback={<StartupScreen />}><AuthenticatedAdventure /></Suspense>;
 }
 
 // NOTE: About Theme
@@ -32,10 +29,7 @@ function App() {
         // switchable
       >
         <LocaleProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Router />
-          </TooltipProvider>
+          <AppEntry />
         </LocaleProvider>
       </ThemeProvider>
     </ErrorBoundary>

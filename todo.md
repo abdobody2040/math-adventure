@@ -30,3 +30,7 @@
 - [x] Elevate the visual polish of landing, onboarding, child, parent, and learning screens with a richer adventure design system and refined interaction states.
 - [x] Verify the polished public landing and onboarding hierarchy, responsive spacing, and RTL presentation before publishing the update.
 - [ ] Visually verify the polished authenticated child dashboard, map, lesson/battle, parent dashboard, and admin screen after a real child profile is available.
+- [x] Diagnose and reduce the slow initial load, including oversized client code and avoidable visual effects.
+- [x] Generate a lightweight consistent character set of two girls and two boys for child avatar selection.
+- [x] Replace generic icon-led visual moments with lightweight custom illustrations or SVG scene elements while preserving accessibility labels.
+- [ ] Fix the mobile onboarding hero clipping and validate the revised mobile layout against the supplied screenshot.

@@ -31,3 +31,7 @@ The expanded validation suite now reports 12 passing tests, including client ent
 ## Visual polish pass
 
 The visual system received an additional refinement pass across the landing, dashboard, map, lesson, parent, and onboarding surfaces. The pass strengthens the warm cream, explorer-purple, mint, and reward-gold palette; adds layered depth, ambient constellation texture, tactile cards and controls, polished progress treatment, and a more distinctive cosmic-math setup motif. A mobile onboarding capture was reviewed at 375 × 812, confirming readable form hierarchy, large touch targets, clear avatar selection, and an unclipped primary action.
+
+## Performance and visual-asset update
+
+The production client previously shipped as one 753,669-byte JavaScript asset. The public landing and authenticated learning experience are now split: the authenticated adventure module is loaded only after sign-in, and the public route avoids the generic icon package through custom inline SVG scenes and glyphs. The service worker was moved to a network-first policy for documents, scripts, and styles, which fixes the stale-shell behavior that could keep the app on an old version; images and static curriculum remain cacheable for offline use. Four generated explorer portraits—two girls and two boys—now replace the letter avatars throughout avatar selection and child-facing moments.

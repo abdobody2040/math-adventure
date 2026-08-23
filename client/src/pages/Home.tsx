@@ -1,27 +1,13 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { startLogin } from "@/const";
+import { EXPLORER_AVATARS, ExplorerPortrait, type AvatarKey } from "@/components/ExplorerPortrait";
 import { useLocale } from "@/contexts/LocaleContext";
 import { resolveParentEntryState } from "@/lib/entryFlow";
 import { trpc } from "@/lib/trpc";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Award, Backpack, BarChart3, Check, ChevronDown, CircleHelp, Coins, Compass, Flame, Home as HomeIcon, Languages, LockKeyhole, Menu, Mountain, Play, Shield, Sparkles, Swords, Trees, UserRound, WandSparkles, X, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, Award, Backpack, BarChart3, Check, ChevronDown, CircleHelp, Coins, Compass, Flame, Home as HomeIcon, Languages, LockKeyhole, Menu, Mountain, Play, Shield, Sparkles, Swords, Trees, UserRound, WandSparkles, X, Zap } from "@/components/AdventureArt";
 
 type Screen = "home" | "map" | "lesson" | "battle" | "parent" | "admin";
-type AvatarKey = "starlight" | "ember" | "sage" | "tide";
-
-const avatarStyles: Record<AvatarKey, { label: string; className: string }> = {
-  starlight: { label: "A", className: "avatar-starlight" },
-  ember: { label: "B", className: "avatar-ember" },
-  sage: { label: "C", className: "avatar-sage" },
-  tide: { label: "D", className: "avatar-tide" },
-};
-
 const iconForWorld = (key: string) => ({ "number-valley": Sparkles, "addition-forest": Trees, "subtraction-desert": Mountain }[key] ?? Compass);
-
-function IconAvatar({ avatarKey, size = "md" }: { avatarKey: string; size?: "sm" | "md" | "lg" }) {
-  const avatar = avatarStyles[avatarKey as AvatarKey] ?? avatarStyles.starlight;
-  return <div aria-hidden="true" className={`avatar ${avatar.className} avatar-${size}`}><span>{avatar.label}</span><i /></div>;
-}
 
 function LanguageToggle() {
   const { locale, setLocale, t } = useLocale();
@@ -40,30 +26,6 @@ function OfflineIndicator() {
   return <span className={`sync-status ${online ? "is-online" : "is-offline"}`}><i />{online ? t("offline.online") : t("offline.offline")}</span>;
 }
 
-function Landing() {
-  const { t } = useLocale();
-  return <div className="landing-page">
-    <header className="landing-header"><a className="brand" href="#top"><span className="brand-mark"><Sparkles size={20} /></span><span>{t("brand.name")}</span></a><LanguageToggle /></header>
-    <main id="top" className="landing-main">
-      <section className="landing-copy">
-        <p className="eyebrow"><Sparkles size={15} />{t("landing.eyebrow")}</p>
-        <h1>{t("landing.title")}</h1>
-        <p className="landing-description">{t("landing.description")}</p>
-        <button type="button" className="primary-button landing-cta" onClick={startLogin}><span>{t("landing.primaryCta")}</span><ArrowRight size={18} /></button>
-        <div className="safety-note"><LockKeyhole size={17} /><span><b>{t("landing.safety")}</b>{t("landing.safetyDetail")}</span></div>
-      </section>
-      <section className="adventure-preview" aria-label={t("brand.name")}>
-        <div className="moon-orb" /><div className="hill hill-far" /><div className="hill hill-near" />
-        <div className="path-dots"><i /><i /><i /></div>
-        <div className="preview-card preview-card-top"><span className="mini-icon mint"><Compass size={19} /></span><span><small>{t("dashboard.dailyQuest")}</small><b>{t("quests.dailyFive")}</b></span><strong>5</strong></div>
-        <div className="preview-card preview-card-bottom"><IconAvatar avatarKey="starlight" /><span><small>{t("dashboard.level", { level: 4 })}</small><b>{t("skills.countTo20")}</b><em><i /></em></span></div>
-        <div className="landing-character"><IconAvatar avatarKey="ember" size="lg" /></div>
-      </section>
-    </main>
-    <section className="landing-features"><p><Zap size={19} />{t("landing.featureOne")}</p><p><WandSparkles size={19} />{t("landing.featureTwo")}</p><p><BarChart3 size={19} />{t("landing.featureThree")}</p></section>
-  </div>;
-}
-
 function Onboarding({ onCreated }: { onCreated: (id: string) => void }) {
   const { t, locale, setLocale, number } = useLocale();
   const createChild = trpc.profile.createChild.useMutation({ onSuccess: child => onCreated(child.id) });
@@ -71,16 +33,17 @@ function Onboarding({ onCreated }: { onCreated: (id: string) => void }) {
   const [age, setAge] = useState(7);
   const [grade, setGrade] = useState("");
   const [avatarKey, setAvatarKey] = useState<AvatarKey>("starlight");
+  useEffect(() => { window.scrollTo(0, 0); }, []);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     createChild.mutate({ displayName: name, age, grade, avatarKey, locale });
   };
   return <div className="onboarding-shell"><LanguageToggle /><main className="onboarding-card">
-    <section className="onboarding-intro"><p className="eyebrow"><UserRound size={15} />{t("onboarding.eyebrow")}</p><h1>{t("onboarding.title")}</h1><p>{t("onboarding.description")}</p><div className="onboarding-art"><span className="orbit orbit-one" /><span className="orbit orbit-two" /><IconAvatar avatarKey={avatarKey} size="lg" /></div></section>
+    <section className="onboarding-intro"><p className="eyebrow"><UserRound size={15} />{t("onboarding.eyebrow")}</p><h1>{t("onboarding.title")}</h1><p>{t("onboarding.description")}</p><div className="onboarding-art"><span className="orbit orbit-one" /><span className="orbit orbit-two" /><ExplorerPortrait avatarKey={avatarKey} size="lg" alt={t("onboarding.avatar")} eager /></div></section>
     <form onSubmit={submit} className="profile-form">
       <label><span>{t("onboarding.name")}</span><input required maxLength={32} value={name} onChange={event => setName(event.target.value)} /></label>
       <div className="form-row"><label><span>{t("onboarding.age")}</span><select value={age} onChange={event => setAge(Number(event.target.value))}>{Array.from({ length: 9 }, (_, index) => index + 6).map(value => <option value={value} key={value}>{number(value)}</option>)}</select></label><label><span>{t("onboarding.grade")}</span><input required maxLength={32} value={grade} placeholder={t("onboarding.gradePlaceholder")} onChange={event => setGrade(event.target.value)} /></label></div>
-      <fieldset><legend>{t("onboarding.avatar")}</legend><div className="avatar-choices">{(Object.keys(avatarStyles) as AvatarKey[]).map(key => <button className={`avatar-choice ${avatarKey === key ? "is-selected" : ""}`} type="button" key={key} onClick={() => setAvatarKey(key)} aria-label={key}><IconAvatar avatarKey={key} />{avatarKey === key && <Check size={15} />}</button>)}</div></fieldset>
+      <fieldset><legend>{t("onboarding.avatar")}</legend><div className="avatar-choices">{(Object.keys(EXPLORER_AVATARS) as AvatarKey[]).map(key => <button className={`avatar-choice ${avatarKey === key ? "is-selected" : ""}`} type="button" key={key} onClick={() => setAvatarKey(key)} aria-label={t("onboarding.avatar")}><ExplorerPortrait avatarKey={key} size="sm" alt="" />{avatarKey === key && <Check size={15} />}</button>)}</div></fieldset>
       {createChild.error && <p className="form-error">{t("common.error")}</p>}
       <button className="primary-button form-submit" disabled={createChild.isPending} type="submit"><span>{createChild.isPending ? t("common.loading") : t("onboarding.create")}</span><ArrowRight size={18} /></button>
     </form>
@@ -107,9 +70,9 @@ function ChildDashboard({ child, dashboard, curriculum, setScreen, startLesson }
   const currentSkill = dashboard?.recommendationSkillKey ?? "count-to-20";
   const latestAchievement = dashboard?.achievements?.[dashboard.achievements.length - 1];
   return <main id="top" className="app-main child-home">
-    <section className="welcome-row"><div><p className="eyebrow"><Sparkles size={15} />{t("common.welcome")}</p><h1>{t("dashboard.greeting")}</h1></div><IconAvatar avatarKey={child.avatarKey} size="lg" /></section>
+    <section className="welcome-row"><div><p className="eyebrow"><Sparkles size={15} />{t("common.welcome")}</p><h1>{t("dashboard.greeting")}</h1></div><ExplorerPortrait avatarKey={child.avatarKey} size="lg" alt={child.displayName} eager /></section>
     <section className="stats-strip"><StatChip icon={Award} value={number(child.level)} label={t("dashboard.level", { level: "" }).trim()} tint="lavender" /><StatChip icon={Zap} value={number(child.xp)} label={t("dashboard.xp")} tint="sky" /><StatChip icon={Coins} value={number(child.coins)} label={t("dashboard.coins")} tint="sun" /><StatChip icon={Flame} value={number(child.streakDays)} label={t("dashboard.streak", { count: "" }).trim()} tint="coral" /></section>
-    <section className="continue-panel"><div className="continue-copy"><p className="eyebrow"><Play size={15} />{t("lesson.sessionIntro")}</p><h2>{t("dashboard.continueTitle")}</h2><p>{t("dashboard.continueDescription")}</p><button className="primary-button" onClick={() => startLesson(currentSkill)}><span>{t("common.continue")}</span><ArrowRight size={18} /></button></div><div className="continue-scene"><span className="scene-cloud cloud-one" /><span className="scene-cloud cloud-two" /><span className="scene-sun" /><div className="scene-hill" /><div className="scene-avatar"><IconAvatar avatarKey={child.avatarKey} size="lg" /></div><span className="scene-star one">✦</span><span className="scene-star two">✦</span></div></section>
+    <section className="continue-panel"><div className="continue-copy"><p className="eyebrow"><Play size={15} />{t("lesson.sessionIntro")}</p><h2>{t("dashboard.continueTitle")}</h2><p>{t("dashboard.continueDescription")}</p><button className="primary-button" onClick={() => startLesson(currentSkill)}><span>{t("common.continue")}</span><ArrowRight size={18} /></button></div><div className="continue-scene"><span className="scene-cloud cloud-one" /><span className="scene-cloud cloud-two" /><span className="scene-sun" /><div className="scene-hill" /><div className="scene-avatar"><ExplorerPortrait avatarKey={child.avatarKey} size="lg" alt={child.displayName} eager /></div><span className="scene-star one">✦</span><span className="scene-star two">✦</span></div></section>
     <section className="dashboard-grid"><article className="quest-card"><div className="card-heading"><span className="card-icon mint"><Compass size={19} /></span><div><p>{t("dashboard.dailyQuest")}</p><h3>{t(dashboard?.dailyQuest?.titleKey ?? "quests.dailyFive")}</h3></div></div><p className="muted">{t("dashboard.questDescription", { target: number(dashboard?.dailyQuest?.target ?? 5) })}</p><div className="progress-label"><span>{t("dashboard.progress", { progress: number(dashboard?.dailyQuest?.progress ?? 0), target: number(dashboard?.dailyQuest?.target ?? 5) })}</span><b>{Math.round(((dashboard?.dailyQuest?.progress ?? 0) / (dashboard?.dailyQuest?.target ?? 5)) * 100)}%</b></div><div className="meter"><i style={{ width: `${((dashboard?.dailyQuest?.progress ?? 0) / (dashboard?.dailyQuest?.target ?? 5)) * 100}%` }} /></div><div className="quest-rewards"><span><Zap size={14} />{number(dashboard?.dailyQuest?.rewardXp ?? 25)} {t("dashboard.xp")}</span><span><Coins size={14} />{number(dashboard?.dailyQuest?.rewardCoins ?? 10)}</span></div></article>
       <article className="focus-card"><div className="card-heading"><span className="card-icon sky"><WandSparkles size={19} /></span><div><p>{t("dashboard.skillFocus")}</p><h3>{t(`skills.${skillKeyToTranslation(currentSkill)}`)}</h3></div></div><p>{t(dashboard?.recommendationKey ?? "recommendations.startAdventure")}</p><button className="text-action" onClick={() => startLesson(currentSkill)}>{t("common.start")}<ArrowRight size={16} /></button></article>
       <article className="badge-card"><div className="card-heading"><span className="card-icon sun"><Award size={19} /></span><div><p>{t("dashboard.latestBadge")}</p><h3>{latestAchievement ? t(`achievements.${achievementKeyToTranslation(latestAchievement)}.title`) : t("dashboard.noBadge")}</h3></div></div><p>{latestAchievement ? t(`achievements.${achievementKeyToTranslation(latestAchievement)}.description`) : t("lesson.feedback")}</p><span className="badge-spark"><Sparkles size={26} /></span></article>
@@ -216,7 +179,7 @@ function ProfileEditor({ child, close, saved }: { child: any; close: () => void;
   const { t, locale, number } = useLocale();
   const updateChild = trpc.profile.updateChild.useMutation({ onSuccess: () => { saved(); close(); } });
   const [name, setName] = useState(child.displayName); const [age, setAge] = useState(child.age); const [grade, setGrade] = useState(child.grade); const [avatarKey, setAvatarKey] = useState<AvatarKey>(child.avatarKey as AvatarKey);
-  return <div className="modal-scrim"><form className="profile-modal" onSubmit={event => { event.preventDefault(); updateChild.mutate({ childId: child.id, displayName: name, age, grade, avatarKey, locale }); }}><button className="modal-close" type="button" onClick={close} aria-label={t("common.close")}><X size={19} /></button><p className="eyebrow"><UserRound size={15} />{t("parent.manageProfile")}</p><h2>{child.displayName}</h2><label><span>{t("onboarding.name")}</span><input value={name} onChange={event => setName(event.target.value)} /></label><div className="form-row"><label><span>{t("onboarding.age")}</span><select value={age} onChange={event => setAge(Number(event.target.value))}>{Array.from({ length: 9 }, (_, index) => index + 6).map(value => <option value={value} key={value}>{number(value)}</option>)}</select></label><label><span>{t("onboarding.grade")}</span><input value={grade} onChange={event => setGrade(event.target.value)} /></label></div><fieldset><legend>{t("onboarding.avatar")}</legend><div className="avatar-choices">{(Object.keys(avatarStyles) as AvatarKey[]).map(key => <button className={`avatar-choice ${avatarKey === key ? "is-selected" : ""}`} type="button" key={key} onClick={() => setAvatarKey(key)}><IconAvatar avatarKey={key} /></button>)}</div></fieldset><button className="primary-button form-submit" type="submit" disabled={updateChild.isPending}><span>{t("common.save")}</span><Check size={17} /></button></form></div>;
+  return <div className="modal-scrim"><form className="profile-modal" onSubmit={event => { event.preventDefault(); updateChild.mutate({ childId: child.id, displayName: name, age, grade, avatarKey, locale }); }}><button className="modal-close" type="button" onClick={close} aria-label={t("common.close")}><X size={19} /></button><p className="eyebrow"><UserRound size={15} />{t("parent.manageProfile")}</p><h2>{child.displayName}</h2><label><span>{t("onboarding.name")}</span><input value={name} onChange={event => setName(event.target.value)} /></label><div className="form-row"><label><span>{t("onboarding.age")}</span><select value={age} onChange={event => setAge(Number(event.target.value))}>{Array.from({ length: 9 }, (_, index) => index + 6).map(value => <option value={value} key={value}>{number(value)}</option>)}</select></label><label><span>{t("onboarding.grade")}</span><input value={grade} onChange={event => setGrade(event.target.value)} /></label></div><fieldset><legend>{t("onboarding.avatar")}</legend><div className="avatar-choices">{(Object.keys(EXPLORER_AVATARS) as AvatarKey[]).map(key => <button className={`avatar-choice ${avatarKey === key ? "is-selected" : ""}`} type="button" key={key} onClick={() => setAvatarKey(key)}><ExplorerPortrait avatarKey={key} size="sm" alt="" /></button>)}</div></fieldset><button className="primary-button form-submit" type="submit" disabled={updateChild.isPending}><span>{t("common.save")}</span><Check size={17} /></button></form></div>;
 }
 
 function AppExperience() {
@@ -245,7 +208,7 @@ function AppExperience() {
   const exitLesson = () => { refetchDashboard(); refetchChildren(); setScreen("home"); };
   const entryState = resolveParentEntryState({ authLoading: loading, authenticated: isAuthenticated, childrenLoading, hasChildrenError: Boolean(childrenError), childCount: children?.length ?? 0 });
   if (entryState === "loading") return <div className="app-loading"><Sparkles size={28} /><p>{t("common.loading")}</p></div>;
-  if (entryState === "landing") return <Landing />;
+  if (entryState === "landing") return null;
   if (entryState === "error") return <AppFailure retry={() => refetchChildren()} />;
   if (entryState === "onboarding" || !activeChild) return <Onboarding onCreated={id => { setActiveChildId(id); refetchChildren(); }} />;
   if (screen === "lesson" || screen === "battle") return <LessonExperience childId={activeChild.id} skillKey={lessonSkill} isBattle={isBattle} exit={exitLesson} />;
