@@ -1,14 +1,24 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { randomUUID } from "node:crypto";
 import {
   achievements,
+  adaptiveRecommendations,
+  analyticsEvents,
+  bossAttempts,
+  bossDefinitions,
   childAchievements,
+  childInventory,
+  childPets,
   childProfiles,
   InsertUser,
   learningSessions,
   lessons,
+  inventoryItems,
+  offlineSyncOperations,
   parentProfiles,
+  parentPreferences,
+  pets,
   questionAttempts,
   questionSessions,
   questionTemplates,
@@ -18,11 +28,12 @@ import {
   skillProgress,
   skills,
   users,
+  weeklyReports,
   worldProgress,
   worlds,
 } from "../drizzle/schema";
-import { skillByKey, starterAchievements, starterLessons, starterQuest, starterQuestionTemplates, starterSkills, starterWorlds } from "../shared/learningContent";
-import { masteryFrom, rewardForAttempt } from "./learningEngine";
+import { skillByKey, starterAchievements, starterBosses, starterInventoryItems, starterLessons, starterPets, starterQuest, starterQuestionTemplates, starterQuests, starterSkills, starterWorlds } from "../shared/learningContent";
+import { generateBossQuestion, masteryFrom, recommendAdaptiveNext, rewardForAttempt } from "./learningEngine";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -73,14 +84,18 @@ export async function getUserByOpenId(openId: string) {
 
 export async function seedStarterContent() {
   const db = await requireDb();
-  const existing = await db.select({ key: worlds.key }).from(worlds).limit(1);
-  if (existing.length) return;
-  await db.insert(worlds).values(starterWorlds.map(world => ({ ...world, isPublished: true })));
-  await db.insert(skills).values(starterSkills.map(skill => ({ ...skill, isPublished: true })));
-  await db.insert(lessons).values(starterLessons);
-  await db.insert(questionTemplates).values(starterQuestionTemplates.map(template => ({ ...template, isEnabled: true })));
-  await db.insert(quests).values(starterQuest);
-  await db.insert(achievements).values(starterAchievements);
+  await Promise.all([
+    db.insert(worlds).values(starterWorlds.map(world => ({ ...world, isPublished: true }))).onDuplicateKeyUpdate({ set: { isPublished: true } }),
+    db.insert(skills).values(starterSkills.map(skill => ({ ...skill, isPublished: true }))).onDuplicateKeyUpdate({ set: { isPublished: true } }),
+    db.insert(lessons).values(starterLessons).onDuplicateKeyUpdate({ set: { estimatedMinutes: 6 } }),
+    db.insert(questionTemplates).values(starterQuestionTemplates.map(({ interaction: _interaction, ...template }) => ({ ...template, isEnabled: true }))).onDuplicateKeyUpdate({ set: { isEnabled: true } }),
+    db.insert(quests).values(starterQuests).onDuplicateKeyUpdate({ set: { target: starterQuest.target } }),
+    db.insert(achievements).values(starterAchievements).onDuplicateKeyUpdate({ set: { iconKey: "sparkles" } }),
+    db.insert(bossDefinitions).values(starterBosses).onDuplicateKeyUpdate({ set: { health: 100 } }),
+    db.insert(inventoryItems).values(starterInventoryItems.map(item => ({ ...item, isPublished: true }))).onDuplicateKeyUpdate({ set: { isPublished: true } }),
+    db.insert(pets).values(starterPets.map(pet => ({ ...pet, isPublished: true }))).onDuplicateKeyUpdate({ set: { isPublished: true } }),
+  ]);
+  curriculumCache = null;
 }
 
 async function getOrCreateParentProfile(userId: number): Promise<{ id: string; userId: number }> {
@@ -106,10 +121,103 @@ async function assertOwnedChild(userId: number, childId: string) {
   return child[0];
 }
 
+async function ensureChildWorldProgress(childId: string) {
+  const db = await requireDb();
+  await db.insert(worldProgress).values(starterWorlds.map(world => ({ id: randomUUID(), childId, worldKey: world.key, isUnlocked: world.order === 1, stars: 0 }))).onDuplicateKeyUpdate({ set: { id: sql`${worldProgress.id}` } });
+}
+
 export async function listChildren(userId: number) {
   const db = await requireDb();
   const parent = await getOrCreateParentProfile(userId);
-  return db.select().from(childProfiles).where(eq(childProfiles.parentId, parent.id));
+  return db.select().from(childProfiles).where(and(eq(childProfiles.parentId, parent.id), isNull(childProfiles.deletedAt)));
+}
+
+export async function softDeleteChild(userId: number, childId: string) {
+  const db = await requireDb();
+  await assertOwnedChild(userId, childId);
+  await db.update(childProfiles).set({ deletedAt: new Date() }).where(eq(childProfiles.id, childId));
+  return { success: true } as const;
+}
+
+export async function getParentPreferences(userId: number) {
+  const db = await requireDb();
+  const parent = await getOrCreateParentProfile(userId);
+  const row = (await db.select().from(parentPreferences).where(eq(parentPreferences.parentId, parent.id)).limit(1))[0];
+  if (row) return row;
+  const created = { id: randomUUID(), parentId: parent.id };
+  await db.insert(parentPreferences).values(created);
+  return { ...created, weeklyReportEnabled: true, learningReminderEnabled: true, dataExportAllowed: true };
+}
+
+export async function updateParentPreferences(userId: number, input: { weeklyReportEnabled?: boolean; learningReminderEnabled?: boolean; dataExportAllowed?: boolean }) {
+  const db = await requireDb();
+  const parent = await getOrCreateParentProfile(userId);
+  await getParentPreferences(userId);
+  await db.update(parentPreferences).set(input).where(eq(parentPreferences.parentId, parent.id));
+  return getParentPreferences(userId);
+}
+
+export async function exportChildData(userId: number, childId: string) {
+  const db = await requireDb();
+  const child = await assertOwnedChild(userId, childId);
+  const [progress, attempts, sessions, achievementsForChild, inventory, petsForChild] = await Promise.all([
+    db.select().from(skillProgress).where(eq(skillProgress.childId, child.id)),
+    db.select().from(questionAttempts).where(eq(questionAttempts.childId, child.id)),
+    db.select().from(learningSessions).where(eq(learningSessions.childId, child.id)),
+    db.select().from(childAchievements).where(eq(childAchievements.childId, child.id)),
+    db.select().from(childInventory).where(eq(childInventory.childId, child.id)),
+    db.select().from(childPets).where(eq(childPets.childId, child.id)),
+  ]);
+  return { exportedAt: new Date().toISOString(), child, progress, attempts, sessions, achievements: achievementsForChild, inventory, pets: petsForChild };
+}
+
+export async function getWeeklyReport(userId: number, childId: string) {
+  const db = await requireDb();
+  const child = await assertOwnedChild(userId, childId);
+  const weekKey = new Date().toISOString().slice(0, 10);
+  const attempts = await db.select().from(questionAttempts).where(eq(questionAttempts.childId, child.id));
+  const summary = { attempts: attempts.length, correct: attempts.filter(item => item.isCorrect).length, accuracy: attempts.length ? Math.round(attempts.filter(item => item.isCorrect).length / attempts.length * 100) : 0 };
+  await db.insert(weeklyReports).values({ id: randomUUID(), childId: child.id, weekKey, summary }).onDuplicateKeyUpdate({ set: { summary } });
+  return { weekKey, summary };
+}
+
+export async function getAdminAnalyticsSummary() {
+  const db = await requireDb();
+  const [children, attempts, events, worldsCount, skillsCount] = await Promise.all([
+    db.select({ id: childProfiles.id }).from(childProfiles).where(isNull(childProfiles.deletedAt)),
+    db.select().from(questionAttempts).orderBy(desc(questionAttempts.createdAt)).limit(500),
+    db.select().from(analyticsEvents).orderBy(desc(analyticsEvents.createdAt)).limit(500),
+    db.select({ key: worlds.key }).from(worlds).where(eq(worlds.isPublished, true)),
+    db.select({ key: skills.key }).from(skills).where(eq(skills.isPublished, true)),
+  ]);
+  const correct = attempts.filter(item => item.isCorrect).length;
+  return { activeChildren: children.length, attempts: attempts.length, accuracy: attempts.length ? Math.round(correct / attempts.length * 100) : 0, trackedEvents: events.length, publishedWorlds: worldsCount.length, publishedSkills: skillsCount.length };
+}
+
+export async function adminSaveWorld(input: { key: string; order: number; nameKey: string; descriptionKey: string; accent: string; iconKey: string; isPublished: boolean }) {
+  const db = await requireDb();
+  await db.insert(worlds).values(input).onDuplicateKeyUpdate({ set: { order: input.order, nameKey: input.nameKey, descriptionKey: input.descriptionKey, accent: input.accent, iconKey: input.iconKey, isPublished: input.isPublished } });
+  curriculumCache = null;
+  return { success: true } as const;
+}
+
+export async function adminSaveSkill(input: { key: string; worldKey: string; order: number; nameKey: string; generatorKey: string; isPublished: boolean }) {
+  const db = await requireDb();
+  await db.insert(skills).values(input).onDuplicateKeyUpdate({ set: { worldKey: input.worldKey, order: input.order, nameKey: input.nameKey, generatorKey: input.generatorKey, isPublished: input.isPublished } });
+  curriculumCache = null;
+  return { success: true } as const;
+}
+
+export async function adminSaveQuestionTemplate(input: { key: string; skillKey: string; kind: string; difficulty: number; isEnabled: boolean }) {
+  const db = await requireDb();
+  await db.insert(questionTemplates).values(input).onDuplicateKeyUpdate({ set: { skillKey: input.skillKey, kind: input.kind, difficulty: input.difficulty, isEnabled: input.isEnabled } });
+  return { success: true } as const;
+}
+
+export async function adminSaveQuest(input: { key: string; titleKey: string; target: number; rewardXp: number; rewardCoins: number; isDaily: boolean }) {
+  const db = await requireDb();
+  await db.insert(quests).values(input).onDuplicateKeyUpdate({ set: { titleKey: input.titleKey, target: input.target, rewardXp: input.rewardXp, rewardCoins: input.rewardCoins, isDaily: input.isDaily } });
+  return { success: true } as const;
 }
 
 export async function createChild(userId: number, input: { displayName: string; age: number; grade: string; avatarKey: string; locale: "en" | "ar" }) {
@@ -125,12 +233,72 @@ export async function createChild(userId: number, input: { displayName: string; 
   return rows[0]!;
 }
 
+export async function getAdaptiveNextQuestion(userId: number, input: { childId: string; requestedSkillKey?: string }) {
+  const db = await requireDb();
+  await seedStarterContent();
+  const child = await assertOwnedChild(userId, input.childId);
+  await ensureChildWorldProgress(child.id);
+  const [progressRows, worldRows, recommendations] = await Promise.all([
+    db.select().from(skillProgress).where(eq(skillProgress.childId, child.id)),
+    db.select().from(worldProgress).where(and(eq(worldProgress.childId, child.id), eq(worldProgress.isUnlocked, true))),
+    db.select().from(adaptiveRecommendations).where(and(eq(adaptiveRecommendations.childId, child.id), isNull(adaptiveRecommendations.dismissedAt))).orderBy(desc(adaptiveRecommendations.createdAt)).limit(1),
+  ]);
+  const unlockedWorlds = new Set(worldRows.map(item => item.worldKey));
+  const unlockedSkills = starterSkills.filter(skill => unlockedWorlds.has(skill.worldKey));
+  const progressBySkill = new Map(progressRows.map(item => [item.skillKey, item]));
+  const requested = input.requestedSkillKey ? unlockedSkills.find(item => item.key === input.requestedSkillKey) : undefined;
+  const recommended = recommendations[0] ? unlockedSkills.find(item => item.key === recommendations[0].skillKey) : undefined;
+  const mustFollowAdaptivePath = recommendations[0]?.action === "remediate" || recommendations[0]?.action === "advance";
+  const skill = (mustFollowAdaptivePath ? recommended : requested ?? recommended) ?? [...unlockedSkills].sort((a, b) => (progressBySkill.get(a.key)?.mastery ?? 0) - (progressBySkill.get(b.key)?.mastery ?? 0))[0] ?? starterSkills[0];
+  const recommendation = recommendations[0];
+  const difficulty = recommendation?.skillKey === skill.key ? recommendation.difficulty : Math.max(1, Math.min(5, Math.ceil((progressBySkill.get(skill.key)?.mastery ?? 0) / 25)) || 1);
+  return { skillKey: skill.key, difficulty, action: recommendation?.action ?? "practice" };
+}
+
 export async function updateChild(userId: number, childId: string, input: { displayName?: string; age?: number; grade?: string; avatarKey?: string; locale?: "en" | "ar" }) {
   const db = await requireDb();
   await assertOwnedChild(userId, childId);
   await db.update(childProfiles).set(input).where(eq(childProfiles.id, childId));
   const child = await db.select().from(childProfiles).where(eq(childProfiles.id, childId)).limit(1);
   return child[0]!;
+}
+
+export async function getChildRewards(userId: number, childId: string) {
+  const db = await requireDb();
+  await assertOwnedChild(userId, childId);
+  const [inventory, ownedPets, catalog, petCatalog] = await Promise.all([
+    db.select().from(childInventory).where(eq(childInventory.childId, childId)),
+    db.select().from(childPets).where(eq(childPets.childId, childId)),
+    db.select().from(inventoryItems).where(eq(inventoryItems.isPublished, true)),
+    db.select().from(pets).where(eq(pets.isPublished, true)),
+  ]);
+  return { inventory, pets: ownedPets, catalog, petCatalog };
+}
+
+export async function redeemInventoryItem(userId: number, input: { childId: string; itemKey: string }) {
+  const db = await requireDb();
+  const child = await assertOwnedChild(userId, input.childId);
+  const item = (await db.select().from(inventoryItems).where(and(eq(inventoryItems.key, input.itemKey), eq(inventoryItems.isPublished, true))).limit(1))[0];
+  if (!item) throw new Error("rewards.error.itemUnavailable");
+  if (child.coins < item.costCoins) throw new Error("rewards.error.notEnoughCoins");
+  await Promise.all([
+    db.insert(childInventory).values({ id: randomUUID(), childId: child.id, itemKey: item.key }).onDuplicateKeyUpdate({ set: { itemKey: item.key } }),
+    db.update(childProfiles).set({ coins: child.coins - item.costCoins }).where(eq(childProfiles.id, child.id)),
+  ]);
+  return { success: true, coins: child.coins - item.costCoins } as const;
+}
+
+export async function unlockPet(userId: number, input: { childId: string; petKey: string }) {
+  const db = await requireDb();
+  const child = await assertOwnedChild(userId, input.childId);
+  const pet = (await db.select().from(pets).where(and(eq(pets.key, input.petKey), eq(pets.isPublished, true))).limit(1))[0];
+  if (!pet) throw new Error("rewards.error.petUnavailable");
+  if (child.coins < pet.unlockCoins) throw new Error("rewards.error.notEnoughCoins");
+  await Promise.all([
+    db.insert(childPets).values({ id: randomUUID(), childId: child.id, petKey: pet.key }).onDuplicateKeyUpdate({ set: { petKey: pet.key } }),
+    db.update(childProfiles).set({ coins: child.coins - pet.unlockCoins }).where(eq(childProfiles.id, child.id)),
+  ]);
+  return { success: true, coins: child.coins - pet.unlockCoins } as const;
 }
 
 export async function createLearningSession(userId: number, input: { childId: string; skillKey: string; mode: "lesson" | "battle" }) {
@@ -162,6 +330,60 @@ export async function createQuestionSession(userId: number, childId: string, ski
   return { id, expiresAt };
 }
 
+export async function startBossAttempt(userId: number, input: { childId: string; worldKey: string }) {
+  const db = await requireDb();
+  const child = await assertOwnedChild(userId, input.childId);
+  await ensureChildWorldProgress(child.id);
+  const [progress, definition] = await Promise.all([
+    db.select().from(worldProgress).where(and(eq(worldProgress.childId, child.id), eq(worldProgress.worldKey, input.worldKey), eq(worldProgress.isUnlocked, true))).limit(1),
+    db.select().from(bossDefinitions).where(eq(bossDefinitions.worldKey, input.worldKey)).limit(1),
+  ]);
+  if (!progress[0] || !definition[0]) throw new Error("learning.error.bossLocked");
+  const attempt = { id: randomUUID(), childId: child.id, worldKey: input.worldKey, healthRemaining: definition[0].health };
+  await db.insert(bossAttempts).values(attempt);
+  return { ...attempt, health: definition[0].health, titleKey: definition[0].titleKey };
+}
+
+export async function createBossQuestion(userId: number, input: { childId: string; bossAttemptId: string }) {
+  const db = await requireDb();
+  await assertOwnedChild(userId, input.childId);
+  const attempt = (await db.select().from(bossAttempts).where(and(eq(bossAttempts.id, input.bossAttemptId), eq(bossAttempts.childId, input.childId))).limit(1))[0];
+  if (!attempt || attempt.completedAt) throw new Error("learning.error.bossUnavailable");
+  const generated = generateBossQuestion(attempt.worldKey, 3, `${attempt.id}:${Date.now()}`);
+  const session = await createQuestionSession(userId, input.childId, generated.skillKey, generated.presentation, generated.correctAnswer);
+  return { questionSessionId: session.id, expiresAt: session.expiresAt, presentation: generated.presentation, explanationKey: generated.explanationKey, skillKey: generated.skillKey, healthRemaining: attempt.healthRemaining };
+}
+
+export async function recordBossAnswer(userId: number, input: { childId: string; bossAttemptId: string; questionSessionId: string; answer: string; responseTimeMs: number; usedHint: boolean }) {
+  const db = await requireDb();
+  const child = await assertOwnedChild(userId, input.childId);
+  const attempt = (await db.select().from(bossAttempts).where(and(eq(bossAttempts.id, input.bossAttemptId), eq(bossAttempts.childId, child.id))).limit(1))[0];
+  if (!attempt || attempt.completedAt) throw new Error("learning.error.bossUnavailable");
+  const result = await recordAnswer(userId, input);
+  const definition = (await db.select().from(bossDefinitions).where(eq(bossDefinitions.worldKey, attempt.worldKey)).limit(1))[0];
+  const healthRemaining = result.isCorrect ? Math.max(0, attempt.healthRemaining - 34) : attempt.healthRemaining;
+  const completed = healthRemaining === 0;
+  await db.update(bossAttempts).set({ healthRemaining, completedAt: completed ? new Date() : null }).where(eq(bossAttempts.id, attempt.id));
+  let completionRewards = { xp: 0, coins: 0, unlockedWorldKey: null as string | null };
+  if (completed && definition) {
+    const latestChild = (await db.select().from(childProfiles).where(eq(childProfiles.id, child.id)).limit(1))[0]!;
+    const xp = latestChild.xp + definition.rewardXp;
+    const coins = latestChild.coins + definition.rewardCoins;
+    const level = Math.floor(xp / 100) + 1;
+    const worldIndex = starterWorlds.findIndex(world => world.key === attempt.worldKey);
+    const nextWorld = starterWorlds[worldIndex + 1];
+    const writes: Promise<unknown>[] = [
+      db.update(childProfiles).set({ xp, coins, level }).where(eq(childProfiles.id, child.id)),
+      db.insert(rewardTransactions).values([{ id: randomUUID(), childId: child.id, kind: "xp", amount: definition.rewardXp, reasonKey: "rewards.bossComplete" }, { id: randomUUID(), childId: child.id, kind: "coins", amount: definition.rewardCoins, reasonKey: "rewards.bossComplete" }]),
+    ];
+    if (definition.badgeKey) writes.push(db.insert(childAchievements).values({ id: randomUUID(), childId: child.id, achievementKey: definition.badgeKey }).onDuplicateKeyUpdate({ set: { achievementKey: definition.badgeKey } }));
+    if (nextWorld) writes.push(db.update(worldProgress).set({ isUnlocked: true }).where(and(eq(worldProgress.childId, child.id), eq(worldProgress.worldKey, nextWorld.key))));
+    await Promise.all(writes);
+    completionRewards = { xp: definition.rewardXp, coins: definition.rewardCoins, unlockedWorldKey: nextWorld?.key ?? null };
+  }
+  return { ...result, boss: { healthRemaining, completed, completionRewards } };
+}
+
 function dayKey(date: Date) {
   return date.toISOString().slice(0, 10);
 }
@@ -185,14 +407,17 @@ export async function recordAnswer(userId: number, input: { childId: string; que
   const now = new Date();
   const rewards = rewardForAttempt(isCorrect, input.responseTimeMs);
   const periodKey = dayKey(now);
-  const [progressRows, dailyQuestRows] = await Promise.all([
+  const [progressRows, dailyQuestRows, recentSkillAttempts] = await Promise.all([
     db.select().from(skillProgress).where(and(eq(skillProgress.childId, child.id), eq(skillProgress.skillKey, question.skillKey))).limit(1),
     db.select().from(questProgress).where(and(eq(questProgress.childId, child.id), eq(questProgress.questKey, "daily-five"), eq(questProgress.periodKey, periodKey))).limit(1),
+    db.select().from(questionAttempts).where(and(eq(questionAttempts.childId, child.id), eq(questionAttempts.skillKey, question.skillKey))).orderBy(desc(questionAttempts.createdAt)).limit(8),
   ]);
   const existing = progressRows[0];
   const attempts = (existing?.attempts ?? 0) + 1;
   const correctAnswers = (existing?.correctAnswers ?? 0) + (isCorrect ? 1 : 0);
   const mastery = masteryFrom(attempts, correctAnswers, input.responseTimeMs);
+  const recentCorrectRate = recentSkillAttempts.length ? recentSkillAttempts.filter(item => item.isCorrect).length / recentSkillAttempts.length : undefined;
+  const adaptive = recommendAdaptiveNext({ attempts, correctAnswers, mastery, responseTimeMs: input.responseTimeMs, usedHint: input.usedHint, recentCorrectRate });
   const progressId = existing?.id ?? randomUUID();
   const nextStreak = calculateStreak(child.lastPracticeAt, child.streakDays, now);
   const xp = child.xp + rewards.xp;
@@ -226,6 +451,8 @@ export async function recordAnswer(userId: number, input: { childId: string; que
     db.insert(questionAttempts).values({ id: randomUUID(), childId: child.id, sessionId: question.id, skillKey: question.skillKey, submittedAnswer: input.answer, isCorrect, responseTimeMs: input.responseTimeMs, usedHint: input.usedHint }),
     db.update(childProfiles).set({ xp, coins, level, streakDays: nextStreak, lastPracticeAt: now }).where(eq(childProfiles.id, child.id)),
     db.insert(questProgress).values({ id: quest?.id ?? randomUUID(), childId: child.id, questKey: "daily-five", periodKey, progress: questValue, completedAt: questValue >= starterQuest.target ? now : null }).onDuplicateKeyUpdate({ set: { progress: questValue, completedAt: questValue >= starterQuest.target ? now : null } }),
+    db.insert(adaptiveRecommendations).values({ id: randomUUID(), childId: child.id, skillKey: question.skillKey, action: adaptive.action, difficulty: adaptive.difficulty, reasonKey: adaptive.reasonKey, priority: adaptive.priority }),
+    db.insert(analyticsEvents).values({ id: randomUUID(), parentId: child.parentId, childId: child.id, eventKey: "answer_submitted", payload: { skillKey: question.skillKey, isCorrect, responseTimeMs: input.responseTimeMs, usedHint: input.usedHint } }),
     ...worldWrites,
   ];
   if (rewards.xp || rewards.coins) writes.push(db.insert(rewardTransactions).values([
@@ -234,19 +461,38 @@ export async function recordAnswer(userId: number, input: { childId: string; que
   ]));
   unlocked.forEach(achievementKey => writes.push(db.insert(childAchievements).values({ id: randomUUID(), childId: child.id, achievementKey }).onDuplicateKeyUpdate({ set: { achievementKey } })));
   await Promise.all(writes);
-  return { isCorrect, rewards, mastery, level, xp, coins, streakDays: nextStreak, quest: { progress: questValue, target: starterQuest.target, completed: questValue >= starterQuest.target }, unlockedAchievementKeys: unlocked, newlyUnlockedWorldKey };
+  return { isCorrect, rewards, mastery, adaptive, level, xp, coins, streakDays: nextStreak, quest: { progress: questValue, target: starterQuest.target, completed: questValue >= starterQuest.target }, unlockedAchievementKeys: unlocked, newlyUnlockedWorldKey };
+}
+
+export async function syncOfflineAnswers(userId: number, input: { childId: string; operations: { idempotencyKey: string; questionSessionId: string; answer: string; responseTimeMs: number; usedHint: boolean }[] }) {
+  const db = await requireDb();
+  await assertOwnedChild(userId, input.childId);
+  const results: { idempotencyKey: string; status: "processed" | "duplicate" | "rejected" }[] = [];
+  for (const operation of input.operations.slice(0, 20)) {
+    const existing = (await db.select().from(offlineSyncOperations).where(and(eq(offlineSyncOperations.childId, input.childId), eq(offlineSyncOperations.idempotencyKey, operation.idempotencyKey))).limit(1))[0];
+    if (existing?.processedAt) { results.push({ idempotencyKey: operation.idempotencyKey, status: "duplicate" }); continue; }
+    if (!existing) await db.insert(offlineSyncOperations).values({ id: randomUUID(), childId: input.childId, idempotencyKey: operation.idempotencyKey, operationType: "answer", payload: operation });
+    try {
+      await recordAnswer(userId, { childId: input.childId, questionSessionId: operation.questionSessionId, answer: operation.answer, responseTimeMs: operation.responseTimeMs, usedHint: operation.usedHint });
+      await db.update(offlineSyncOperations).set({ processedAt: new Date() }).where(and(eq(offlineSyncOperations.childId, input.childId), eq(offlineSyncOperations.idempotencyKey, operation.idempotencyKey)));
+      results.push({ idempotencyKey: operation.idempotencyKey, status: "processed" });
+    } catch { results.push({ idempotencyKey: operation.idempotencyKey, status: "rejected" }); }
+  }
+  return { results };
 }
 
 export async function getChildDashboard(userId: number, childId: string) {
   const db = await requireDb();
   const child = await assertOwnedChild(userId, childId);
-  const [progress, recentAttempts, unlocked, questRows, worldRows, sessionRows] = await Promise.all([
+  await ensureChildWorldProgress(child.id);
+  const [progress, recentAttempts, unlocked, questRows, worldRows, sessionRows, adaptiveRows] = await Promise.all([
     db.select().from(skillProgress).where(eq(skillProgress.childId, child.id)),
     db.select().from(questionAttempts).where(eq(questionAttempts.childId, child.id)).orderBy(desc(questionAttempts.createdAt)).limit(8),
     db.select().from(childAchievements).where(eq(childAchievements.childId, child.id)),
     db.select().from(questProgress).where(and(eq(questProgress.childId, child.id), eq(questProgress.questKey, "daily-five"), eq(questProgress.periodKey, dayKey(new Date())))).limit(1),
     db.select().from(worldProgress).where(eq(worldProgress.childId, child.id)),
     db.select().from(learningSessions).where(eq(learningSessions.childId, child.id)),
+    db.select().from(adaptiveRecommendations).where(and(eq(adaptiveRecommendations.childId, child.id), isNull(adaptiveRecommendations.dismissedAt))).orderBy(desc(adaptiveRecommendations.createdAt)).limit(1),
   ]);
   const weakest = [...progress].sort((a, b) => a.mastery - b.mastery)[0];
   const totalAttempts = progress.reduce((sum, item) => sum + item.attempts, 0);
@@ -260,8 +506,9 @@ export async function getChildDashboard(userId: number, childId: string) {
     totalAttempts,
     learningSeconds: sessionRows.reduce((total, session) => total + (session.completedAt ? session.durationSeconds : 0), 0),
     accuracy: totalAttempts ? Math.round((totalCorrect / totalAttempts) * 100) : null,
-    recommendationKey: weakest ? "recommendations.practiceSkill" : "recommendations.startAdventure",
-    recommendationSkillKey: weakest?.skillKey ?? "count-to-20",
+    recommendationKey: adaptiveRows[0]?.reasonKey ?? (weakest ? "recommendations.practiceSkill" : "recommendations.startAdventure"),
+    recommendationSkillKey: adaptiveRows[0]?.skillKey ?? weakest?.skillKey ?? "count-to-20",
+    adaptive: adaptiveRows[0] ?? null,
     dailyQuest: { key: starterQuest.key, titleKey: starterQuest.titleKey, progress: questRows[0]?.progress ?? 0, target: starterQuest.target, rewardXp: starterQuest.rewardXp, rewardCoins: starterQuest.rewardCoins },
   };
 }

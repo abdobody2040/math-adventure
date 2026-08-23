@@ -11,9 +11,10 @@ function StartupScreen() {
 }
 
 function AppEntry() {
-  const { isAuthenticated } = useAuth();
+  const auth = useAuth();
+  const { isAuthenticated } = auth;
   if (!isAuthenticated) return <LandingPage />;
-  return <Suspense fallback={<StartupScreen />}><AuthenticatedAdventure /></Suspense>;
+  return <Suspense fallback={<StartupScreen />}><AuthenticatedAdventure auth={auth} /></Suspense>;
 }
 
 // NOTE: About Theme

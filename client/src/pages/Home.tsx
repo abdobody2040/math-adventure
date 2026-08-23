@@ -2,11 +2,12 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { EXPLORER_AVATARS, ExplorerPortrait, type AvatarKey } from "@/components/ExplorerPortrait";
 import { useLocale } from "@/contexts/LocaleContext";
 import { resolveParentEntryState } from "@/lib/entryFlow";
+import { enqueueAnswer, readQueuedAnswers, removeQueuedAnswers } from "@/lib/offlineQueue";
 import { trpc } from "@/lib/trpc";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Award, Backpack, BarChart3, Check, ChevronDown, CircleHelp, Coins, Compass, Flame, Home as HomeIcon, Languages, LockKeyhole, Menu, Mountain, Play, Shield, Sparkles, Swords, Trees, UserRound, WandSparkles, X, Zap } from "@/components/AdventureArt";
 
-type Screen = "home" | "map" | "lesson" | "battle" | "parent" | "admin";
+type Screen = "home" | "map" | "lesson" | "battle" | "boss" | "parent" | "admin";
 const iconForWorld = (key: string) => ({ "number-valley": Sparkles, "addition-forest": Trees, "subtraction-desert": Mountain }[key] ?? Compass);
 
 function LanguageToggle() {
@@ -65,6 +66,16 @@ function StatChip({ icon: Icon, value, label, tint }: { icon: typeof Award; valu
   return <div className={`stat-chip ${tint}`}><span><Icon size={16} /></span><b>{value}</b><small>{label}</small></div>;
 }
 
+function RewardShelf({ child }: { child: any }) {
+  const { t, number } = useLocale();
+  const { data, refetch } = trpc.rewards.collection.useQuery({ childId: child.id });
+  const redeem = trpc.rewards.redeemItem.useMutation({ onSuccess: () => refetch() });
+  const unlock = trpc.rewards.unlockPet.useMutation({ onSuccess: () => refetch() });
+  const ownedItems = new Set((data?.inventory ?? []).map((item: any) => item.itemKey));
+  const ownedPets = new Set((data?.pets ?? []).map((pet: any) => pet.petKey));
+  return <section className="reward-shelf"><div className="section-title"><div><p>{t("rewards.collection")}</p><h2>{t("rewards.companions")}</h2></div><Backpack size={20} /></div><div className="reward-grid">{(data?.petCatalog ?? []).map((pet: any) => <article key={pet.key}><span className="pet-orb">{pet.key === "pico-owl" ? "◉" : "✦"}</span><b>{t(pet.titleKey)}</b><small>{t(pet.descriptionKey)}</small><button disabled={ownedPets.has(pet.key) || unlock.isPending} onClick={() => unlock.mutate({ childId: child.id, petKey: pet.key })}>{ownedPets.has(pet.key) ? t("rewards.unlocked") : `${number(pet.unlockCoins)} ${t("dashboard.coins")}`}</button></article>)}</div><div className="cosmetic-row">{(data?.catalog ?? []).map((item: any) => <button key={item.key} disabled={ownedItems.has(item.key) || redeem.isPending} onClick={() => redeem.mutate({ childId: child.id, itemKey: item.key })}><span>{item.key === "star-cape" ? "✧" : item.key === "mint-trail" ? "⌁" : "▣"}</span><b>{t(item.titleKey)}</b><small>{ownedItems.has(item.key) ? t("rewards.unlocked") : `${number(item.costCoins)} ${t("dashboard.coins")}`}</small></button>)}</div></section>;
+}
+
 function ChildDashboard({ child, dashboard, curriculum, setScreen, startLesson }: { child: any; dashboard: any; curriculum: any; setScreen: (screen: Screen) => void; startLesson: (skillKey: string, battle?: boolean) => void }) {
   const { t, number } = useLocale();
   const currentSkill = dashboard?.recommendationSkillKey ?? "count-to-20";
@@ -77,12 +88,13 @@ function ChildDashboard({ child, dashboard, curriculum, setScreen, startLesson }
       <article className="focus-card"><div className="card-heading"><span className="card-icon sky"><WandSparkles size={19} /></span><div><p>{t("dashboard.skillFocus")}</p><h3>{t(`skills.${skillKeyToTranslation(currentSkill)}`)}</h3></div></div><p>{t(dashboard?.recommendationKey ?? "recommendations.startAdventure")}</p><button className="text-action" onClick={() => startLesson(currentSkill)}>{t("common.start")}<ArrowRight size={16} /></button></article>
       <article className="badge-card"><div className="card-heading"><span className="card-icon sun"><Award size={19} /></span><div><p>{t("dashboard.latestBadge")}</p><h3>{latestAchievement ? t(`achievements.${achievementKeyToTranslation(latestAchievement)}.title`) : t("dashboard.noBadge")}</h3></div></div><p>{latestAchievement ? t(`achievements.${achievementKeyToTranslation(latestAchievement)}.description`) : t("lesson.feedback")}</p><span className="badge-spark"><Sparkles size={26} /></span></article>
     </section>
-    <section className="quick-actions"><button onClick={() => setScreen("map")}><Compass size={19} /><span><b>{t("dashboard.exploreMap")}</b><small>{curriculum?.worlds?.length ?? 3} {t("map.skills")}</small></span><ArrowRight size={17} /></button><button onClick={() => startLesson(currentSkill, true)}><Swords size={19} /><span><b>{t("dashboard.startBattle")}</b><small>{t("lesson.battleIntro")}</small></span><ArrowRight size={17} /></button></section>
+    <section className="quick-actions"><button onClick={() => setScreen("map")}><Compass size={19} /><span><b>{t("dashboard.exploreMap")}</b><small>{curriculum?.worlds?.length ?? 3} {t("map.skills")}</small></span><ArrowRight size={17} /></button><button onClick={() => startLesson("boss:number-valley", true)}><Swords size={19} /><span><b>{t("dashboard.startBattle")}</b><small>{t("lesson.battleIntro")}</small></span><ArrowRight size={17} /></button></section>
+    <RewardShelf child={child} />
   </main>;
 }
 
 function skillKeyToTranslation(key: string) {
-  return ({ "count-to-20": "countTo20", "number-recognition": "numberRecognition", "compare-numbers": "compareNumbers", "number-sequences": "numberSequences", "add-within-10": "addWithin10", "make-ten": "makeTen", "add-within-20": "addWithin20", "subtract-within-10": "subtractWithin10", "subtract-within-20": "subtractWithin20", "number-bonds": "numberBonds" } as Record<string, string>)[key] ?? "countTo20";
+  return key.replace(/-([a-z0-9])/g, (_, character: string) => character.toUpperCase());
 }
 
 function achievementKeyToTranslation(key: string) {
@@ -99,14 +111,17 @@ function AdventureMap({ curriculum, childDashboard, startLesson }: { curriculum:
 }
 
 function LessonExperience({ childId, skillKey, isBattle, exit }: { childId: string; skillKey: string; isBattle: boolean; exit: () => void }) {
-  const { t, number } = useLocale();
+  const { t, number, locale } = useLocale();
   const nextQuestion = trpc.learning.nextQuestion.useMutation();
   const submitAnswer = trpc.learning.submitAnswer.useMutation();
   const startSession = trpc.learning.startSession.useMutation();
   const completeSession = trpc.learning.completeSession.useMutation();
+  const tutorHint = trpc.tutor.hint.useMutation();
+  const syncAnswers = trpc.sync.answers.useMutation();
   const [question, setQuestion] = useState<any>(null);
   const [learningSessionId, setLearningSessionId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [orderedValues, setOrderedValues] = useState<string[]>([]);
   const [result, setResult] = useState<any>(null);
   const [showHint, setShowHint] = useState(false);
   const [round, setRound] = useState(0);
@@ -115,14 +130,24 @@ function LessonExperience({ childId, skillKey, isBattle, exit }: { childId: stri
   const battleShield = Math.max(0, 100 - round * 34);
 
   const loadQuestion = () => {
-    setSelected(null); setResult(null); setShowHint(false); startedAt.current = Date.now();
-    nextQuestion.mutate({ childId, skillKey, difficulty: 1 }, { onSuccess: data => setQuestion(data) });
+    setSelected(null); setOrderedValues([]); setResult(null); setShowHint(false); tutorHint.reset(); startedAt.current = Date.now();
+    nextQuestion.mutate({ childId, skillKey }, { onSuccess: data => setQuestion(data) });
   };
   useEffect(() => {
     loadQuestion();
     sessionStartedAt.current = Date.now();
     startSession.mutate({ childId, skillKey, mode: isBattle ? "battle" : "lesson" }, { onSuccess: data => setLearningSessionId(data.id) });
   }, [childId, isBattle, skillKey]);
+  useEffect(() => {
+    const flush = () => {
+      const operations = readQueuedAnswers(childId);
+      if (!operations.length || !navigator.onLine) return;
+      syncAnswers.mutate({ childId, operations }, { onSuccess: data => removeQueuedAnswers(childId, data.results.filter(item => item.status !== "rejected").map(item => item.idempotencyKey)) });
+    };
+    window.addEventListener("online", flush);
+    flush();
+    return () => window.removeEventListener("online", flush);
+  }, [childId]);
   const exitSession = () => {
     if (learningSessionId) completeSession.mutate({ childId, sessionId: learningSessionId, durationSeconds: Math.round((Date.now() - sessionStartedAt.current) / 1000) });
     exit();
@@ -133,27 +158,54 @@ function LessonExperience({ childId, skillKey, isBattle, exit }: { childId: stri
     if (item.kind === "count") return <><div className="star-count">{Array.from({ length: item.amount }, (_, index) => <Sparkles key={index} size={29} />)}</div><h2>{t("lesson.countPrompt")}</h2></>;
     if (item.kind === "compare") return <><div className="math-expression"><b>{number(item.left)}</b><span>?</span><b>{number(item.right)}</b></div><h2>{t("lesson.comparePrompt")}</h2></>;
     if (item.kind === "sequence") return <><div className="math-expression sequence">{item.values.map((value: number | null, index: number) => <b key={index}>{value === null ? "?" : number(value)}</b>)}</div><h2>{t("lesson.sequencePrompt")}</h2></>;
-    const operator = item.kind === "addition" ? "+" : "−";
-    return <><div className="math-expression"><b>{number(item.left)}</b><span>{operator}</span><b>{number(item.right)}</b><span>=</span><b>?</b></div><h2>{t("lesson.equationPrompt")}</h2></>;
+    if (item.kind === "fraction") return <><div className="fraction-visual"><b>{number(item.visual?.numerator ?? 1)}</b><i /><b>{number(item.visual?.denominator ?? 2)}</b></div><h2>{t("lesson.fractionPrompt")}</h2></>;
+    if (item.kind === "logic") return <><div className="logic-visual"><span>{item.visual?.shape === "pattern" ? "● ▲ ● ▲" : "● ▲ ▲ ●"}</span></div><h2>{t("lesson.logicPrompt")}</h2></>;
+    if (item.kind === "geometry") return <><div className="shape-visual">△</div><h2>{t("lesson.geometryPrompt")}</h2></>;
+    const operator = item.kind === "addition" ? "+" : item.kind === "subtraction" ? "−" : item.kind === "multiplication" ? "×" : item.kind === "division" ? "÷" : "+";
+    return <><div className="math-expression"><b>{number(item.left)}</b><span>{operator}</span><b>{number(item.right)}</b><span>=</span><b>?</b></div><h2>{item.kind === "wordProblem" ? t("lesson.wordProblemPrompt") : t("lesson.equationPrompt")}</h2></>;
   }, [number, question?.presentation, t]);
   const answer = () => {
     if (!selected || !question || result) return;
-    submitAnswer.mutate({ childId, questionSessionId: question.questionSessionId, answer: selected, responseTimeMs: Date.now() - startedAt.current, usedHint: showHint }, { onSuccess: data => { setResult(data); if (data.isCorrect) setRound(value => value + 1); } });
+    const payload = { childId, questionSessionId: question.questionSessionId, answer: selected, responseTimeMs: Date.now() - startedAt.current, usedHint: showHint };
+    submitAnswer.mutate(payload, { onSuccess: data => { setResult(data); if (data.isCorrect) setRound(value => value + 1); }, onError: () => { if (!navigator.onLine) enqueueAnswer(childId, { ...payload, idempotencyKey: crypto.randomUUID() }); } });
   };
   const feedbackTitle = result?.isCorrect ? t("lesson.correct") : t("lesson.incorrect");
   return <main className={`lesson-page ${isBattle ? "battle-page" : ""}`}><header className="lesson-header"><button type="button" onClick={exitSession} className="icon-button" aria-label={t("common.back")}><ArrowLeft size={20} /></button><div><p>{isBattle ? t("navigation.battle") : t("lesson.eyebrow")}</p><b>{t(`skills.${skillKeyToTranslation(skillKey)}`)}</b></div><span className="question-count">{number(Math.min(round + 1, 3))} / {number(3)}</span></header>
     {isBattle && <section className="battle-stage"><div className="guardian"><Shield size={56} /><span><i /></span></div><div className="shield-readout"><span>{t("lesson.shield")}</span><div className="meter"><i style={{ width: `${battleShield}%` }} /></div><b>{number(battleShield)}%</b></div></section>}
-    <section className="lesson-card"><p className="eyebrow"><WandSparkles size={15} />{isBattle ? t("lesson.battleIntro") : t("lesson.sessionIntro")}</p>{nextQuestion.isPending && <div className="lesson-loading"><Sparkles size={28} /><p>{t("common.loading")}</p></div>}{nextQuestion.error && <div className="empty-state"><CircleHelp size={28} /><p>{t("common.error")}</p><button onClick={loadQuestion}>{t("common.retry")}</button></div>}{question && <><div className="prompt-area">{prompt}</div><p className="choose-label">{t("lesson.question")}</p><div className="answer-grid">{question.presentation.choices.map((choice: string) => <button disabled={Boolean(result)} className={`${selected === choice ? "is-selected" : ""} ${result && choice === selected ? (result.isCorrect ? "is-correct" : "is-wrong") : ""}`} onClick={() => setSelected(choice)} key={choice}>{choice}</button>)}</div><button type="button" className="hint-button" onClick={() => setShowHint(!showHint)}><CircleHelp size={16} />{t("lesson.hint")}</button>{showHint && <p className="hint-text">{t("lesson.hintText")}</p>}{!result ? <button disabled={!selected || submitAnswer.isPending} className="primary-button lesson-action" onClick={answer}><span>{t("lesson.check")}</span><Check size={18} /></button> : <div className={`feedback-card ${result.isCorrect ? "correct" : "incorrect"}`}><span>{result.isCorrect ? <Sparkles size={24} /> : <WandSparkles size={24} />}</span><div><h3>{feedbackTitle}</h3><p>{t(question.explanationKey)}</p><b>{t("lesson.earned", { xp: number(result.rewards.xp), coins: number(result.rewards.coins) })}</b></div>{round >= 3 && result.isCorrect ? <button className="primary-button" onClick={exitSession}><span>{isBattle ? t("lesson.battleWin") : t("lesson.lessonWin")}</span><ArrowRight size={18} /></button> : <button className="secondary-button" onClick={loadQuestion}><span>{t("lesson.next")}</span><ArrowRight size={18} /></button>}</div>}</>}</section></main>;
+    <section className="lesson-card"><p className="eyebrow"><WandSparkles size={15} />{isBattle ? t("lesson.battleIntro") : t("lesson.sessionIntro")}</p>{nextQuestion.isPending && <div className="lesson-loading"><Sparkles size={28} /><p>{t("common.loading")}</p></div>}{nextQuestion.error && <div className="empty-state"><CircleHelp size={28} /><p>{t("common.error")}</p><button onClick={loadQuestion}>{t("common.retry")}</button></div>}{question && <><div className="prompt-area">{prompt}</div>{question.presentation.timeLimitSeconds && <p className="timed-question">{t("lesson.timedQuestion", { seconds: number(question.presentation.timeLimitSeconds) })}</p>}<p className="choose-label">{question.presentation.interaction === "numeric" || question.presentation.interaction === "timed" ? t("lesson.enterAnswer") : question.presentation.interaction === "ordering" ? t("lesson.orderPrompt") : question.presentation.interaction === "matching" ? t("lesson.matchPrompt") : t("lesson.question")}</p>{question.presentation.interaction === "numeric" || question.presentation.interaction === "timed" ? <input className="numeric-answer" inputMode="numeric" value={selected ?? ""} onChange={event => setSelected(event.target.value)} disabled={Boolean(result)} aria-label={t("lesson.enterAnswer")} /> : question.presentation.interaction === "ordering" ? <><div className="order-tray">{orderedValues.map((value, index) => <button type="button" key={`${value}-${index}`} onClick={() => { const next = orderedValues.filter((_, itemIndex) => itemIndex !== index); setOrderedValues(next); setSelected(next.join(",")); }}>{value}</button>)}</div><div className="answer-grid ordering-grid">{(question.presentation.choices ?? []).filter((choice: string) => !orderedValues.includes(choice)).map((choice: string) => <button disabled={Boolean(result)} onClick={() => { const next = [...orderedValues, choice]; setOrderedValues(next); setSelected(next.join(",")); }} key={choice}>{choice}</button>)}</div></> : <div className={`answer-grid ${question.presentation.interaction === "matching" ? "matching-grid" : question.presentation.interaction === "visual" ? "visual-answer-grid" : ""}`}>{question.presentation.interaction === "matching" && <div className="match-source">{question.presentation.matchSource}</div>}{(question.presentation.choices ?? []).map((choice: string) => <button disabled={Boolean(result)} className={`${selected === choice ? "is-selected" : ""} ${result && choice === selected ? (result.isCorrect ? "is-correct" : "is-wrong") : ""}`} onClick={() => setSelected(choice)} key={choice}>{question.presentation.interaction === "visual" && <span className="visual-dot-count">{Array.from({ length: Math.min(10, Number(choice) || 1) }, (_, index) => <i key={index} />)}</span>}{choice === "true" ? t("lesson.true") : choice === "false" ? t("lesson.false") : choice}</button>)}</div>}<button type="button" className="hint-button" onClick={() => { const next = !showHint; setShowHint(next); if (next) tutorHint.mutate({ childId, skillKey, presentation: question.presentation, locale }); }}><CircleHelp size={16} />{t("lesson.hint")}</button>{showHint && <p className="hint-text">{tutorHint.data?.hint ?? (tutorHint.isPending ? t("common.loading") : t("lesson.hintText"))}</p>}{!result ? <button disabled={!selected || submitAnswer.isPending} className="primary-button lesson-action" onClick={answer}><span>{t("lesson.check")}</span><Check size={18} /></button> : <div className={`feedback-card ${result.isCorrect ? "correct" : "incorrect"}`}><span>{result.isCorrect ? <Sparkles size={24} /> : <WandSparkles size={24} />}</span><div><h3>{feedbackTitle}</h3><p>{t(question.explanationKey)}</p><b>{t("lesson.earned", { xp: number(result.rewards.xp), coins: number(result.rewards.coins) })}</b></div>{round >= 3 && result.isCorrect ? <button className="primary-button" onClick={exitSession}><span>{isBattle ? t("lesson.battleWin") : t("lesson.lessonWin")}</span><ArrowRight size={18} /></button> : <button className="secondary-button" onClick={loadQuestion}><span>{t("lesson.next")}</span><ArrowRight size={18} /></button>}</div>}</>}</section></main>;
+}
+
+function BossExperience({ childId, worldKey, exit }: { childId: string; worldKey: string; exit: () => void }) {
+  const { t, number } = useLocale();
+  const start = trpc.learning.boss.start.useMutation();
+  const nextQuestion = trpc.learning.boss.nextQuestion.useMutation();
+  const submit = trpc.learning.boss.submitAnswer.useMutation();
+  const [attempt, setAttempt] = useState<any>(null);
+  const [question, setQuestion] = useState<any>(null);
+  const [answerValue, setAnswerValue] = useState("");
+  const [result, setResult] = useState<any>(null);
+  const startedAt = useRef(Date.now());
+  const load = (attemptId: string) => { setAnswerValue(""); setResult(null); startedAt.current = Date.now(); nextQuestion.mutate({ childId, bossAttemptId: attemptId }, { onSuccess: setQuestion }); };
+  useEffect(() => { start.mutate({ childId, worldKey }, { onSuccess: data => { setAttempt(data); load(data.id); } }); }, [childId, worldKey]);
+  const send = () => { if (!answerValue || !question || !attempt) return; submit.mutate({ childId, bossAttemptId: attempt.id, questionSessionId: question.questionSessionId, answer: answerValue, responseTimeMs: Date.now() - startedAt.current, usedHint: false }, { onSuccess: setResult }); };
+  const health = result?.boss?.healthRemaining ?? question?.healthRemaining ?? attempt?.healthRemaining ?? 100;
+  const choices = question?.presentation?.choices ?? [];
+  return <main className="lesson-page battle-page"><header className="lesson-header"><button type="button" onClick={exit} className="icon-button" aria-label={t("common.back")}><ArrowLeft size={20} /></button><div><p>{t("boss.title")}</p><b>{t(`bosses.${worldKey}`)}</b></div><span className="question-count">{number(health)}%</span></header><section className="battle-stage"><div className="guardian"><Shield size={56} /><span><i /></span></div><div className="shield-readout"><span>{t("lesson.shield")}</span><div className="meter"><i style={{ width: `${health}%` }} /></div><b>{number(health)}%</b></div></section><section className="lesson-card">{(start.isPending || nextQuestion.isPending) && <div className="lesson-loading"><Sparkles size={28} /><p>{t("common.loading")}</p></div>}{(start.error || nextQuestion.error) && <div className="empty-state"><CircleHelp size={28} /><p>{t("common.error")}</p><button onClick={exit}>{t("common.back")}</button></div>}{question && <><div className="prompt-area"><div className="math-expression"><b>{number(question.presentation.left ?? question.presentation.amount ?? 0)}</b>{question.presentation.right !== undefined && <><span>{question.presentation.kind === "multiplication" ? "×" : question.presentation.kind === "division" ? "÷" : "+"}</span><b>{number(question.presentation.right)}</b></>}<span>=</span><b>?</b></div><h2>{t("boss.challenge")}</h2></div>{choices.length ? <div className="answer-grid">{choices.map((choice: string) => <button key={choice} disabled={Boolean(result)} className={answerValue === choice ? "is-selected" : ""} onClick={() => setAnswerValue(choice)}>{choice}</button>)}</div> : <input className="numeric-answer" inputMode="numeric" value={answerValue} onChange={event => setAnswerValue(event.target.value)} aria-label={t("lesson.enterAnswer")} />}{!result ? <button className="primary-button lesson-action" onClick={send} disabled={!answerValue || submit.isPending}><span>{t("lesson.check")}</span><Check size={18} /></button> : <div className={`feedback-card ${result.isCorrect ? "correct" : "incorrect"}`}><span>{result.isCorrect ? <Sparkles size={24} /> : <WandSparkles size={24} />}</span><div><h3>{result.boss.completed ? t("boss.complete") : result.isCorrect ? t("boss.hit") : t("lesson.incorrect")}</h3><p>{t(question.explanationKey)}</p></div>{result.boss.completed ? <button className="primary-button" onClick={exit}><span>{t("lesson.finish")}</span><ArrowRight size={18} /></button> : <button className="secondary-button" onClick={() => load(attempt.id)}><span>{t("lesson.next")}</span><ArrowRight size={18} /></button>}</div>}</>}</section></main>;
 }
 
 function ParentDashboard({ child, dashboard, curriculum, onEdit }: { child: any; dashboard: any; curriculum: any; onEdit: () => void }) {
   const { t, number } = useLocale();
+  const { data: weekly } = trpc.profile.weeklyReport.useQuery({ childId: child.id });
+  const { data: preferences } = trpc.profile.preferences.useQuery();
+  const updatePreferences = trpc.profile.updatePreferences.useMutation();
+  const exportChild = trpc.profile.exportChild.useQuery({ childId: child.id }, { enabled: false });
+  const downloadExport = async () => { const response = await exportChild.refetch(); if (!response.data) return; const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `${child.displayName}-learning-data.json`; link.click(); URL.revokeObjectURL(url); };
   const skillRows = (dashboard?.skillProgress ?? []).slice(0, 5);
   const learningMinutes = Math.max(0, Math.round((dashboard?.learningSeconds ?? 0) / 60));
   const skill = dashboard?.recommendationSkillKey ?? "count-to-20";
   return <main className="app-main parent-page"><section className="parent-heading"><div><p className="eyebrow"><BarChart3 size={15} />{t("parent.eyebrow")}</p><h1>{t("parent.title")}</h1><p>{t("parent.childSelect")} <b>{child.displayName}</b></p></div><button className="secondary-button" onClick={onEdit}><span>{t("parent.manageProfile")}</span><UserRound size={16} /></button></section>
     <section className="parent-summary"><article><span className="card-icon sky"><Play size={18} /></span><p>{t("parent.learningTime")}</p><b>{number(learningMinutes)} <small>{t("common.minutes")}</small></b></article><article><span className="card-icon lavender"><CircleHelp size={18} /></span><p>{t("parent.questions")}</p><b>{number(dashboard?.totalAttempts ?? 0)}</b></article><article><span className="card-icon mint"><Check size={18} /></span><p>{t("parent.accuracy")}</p><b>{dashboard?.accuracy === null || dashboard?.accuracy === undefined ? "—" : `${number(dashboard.accuracy)}%`}</b></article><article><span className="card-icon coral"><Flame size={18} /></span><p>{t("parent.streak")}</p><b>{number(child.streakDays)}</b></article></section>
-    <section className="parent-grid"><article className="progress-card"><div className="section-title"><div><p>{t("parent.summary")}</p><h2>{t("parent.skillProgress")}</h2></div><BarChart3 size={20} /></div>{skillRows.length ? <div className="progress-list">{skillRows.map((item: any) => <div key={item.skillKey}><div><span>{t(`skills.${skillKeyToTranslation(item.skillKey)}`)}</span><b>{number(item.mastery)}%</b></div><div className="meter"><i style={{ width: `${item.mastery}%` }} /></div></div>)}</div> : <div className="empty-inline"><Backpack size={24} /><p>{t("parent.emptyProgress")}</p></div>}</article><article className="recommendation-card"><span className="recommendation-star"><WandSparkles size={22} /></span><p>{t("parent.recommendation")}</p><h2>{t(`skills.${skillKeyToTranslation(skill)}`)}</h2><p>{t("parent.recommendationDetail", { skill: t(`skills.${skillKeyToTranslation(skill)}`) })}</p><span className="recommendation-line" /></article><article className="activity-card"><div className="section-title"><div><p>{t("parent.summary")}</p><h2>{t("parent.activity")}</h2></div><ClockIcon /></div>{dashboard?.recentAttempts?.length ? <div className="activity-list">{dashboard.recentAttempts.slice(0, 4).map((attempt: any) => <div key={attempt.id}><span className={attempt.isCorrect ? "activity-good" : "activity-try"}>{attempt.isCorrect ? <Check size={15} /> : <WandSparkles size={15} />}</span><div><b>{t(`skills.${skillKeyToTranslation(attempt.skillKey)}`)}</b><small>{attempt.isCorrect ? t("rewards.correctAnswer") : t("rewards.braveTry")}</small></div></div>)}</div> : <div className="empty-inline"><Compass size={24} /><p>{t("parent.noActivity")}</p></div>}</article><article className="privacy-card"><LockKeyhole size={21} /><div><b>{t("parent.privacy")}</b><p>{t("parent.privacyDetail")}</p></div></article></section>
+    <section className="parent-grid"><article className="progress-card"><div className="section-title"><div><p>{t("parent.summary")}</p><h2>{t("parent.skillProgress")}</h2></div><BarChart3 size={20} /></div>{skillRows.length ? <div className="progress-list">{skillRows.map((item: any) => <div key={item.skillKey}><div><span>{t(`skills.${skillKeyToTranslation(item.skillKey)}`)}</span><b>{number(item.mastery)}%</b></div><div className="meter"><i style={{ width: `${item.mastery}%` }} /></div></div>)}</div> : <div className="empty-inline"><Backpack size={24} /><p>{t("parent.emptyProgress")}</p></div>}</article><article className="recommendation-card"><span className="recommendation-star"><WandSparkles size={22} /></span><p>{t("parent.recommendation")}</p><h2>{t(`skills.${skillKeyToTranslation(skill)}`)}</h2><p>{t("parent.recommendationDetail", { skill: t(`skills.${skillKeyToTranslation(skill)}`) })}</p><span className="recommendation-line" /></article><article className="activity-card"><div className="section-title"><div><p>{t("parent.summary")}</p><h2>{t("parent.activity")}</h2></div><ClockIcon /></div>{dashboard?.recentAttempts?.length ? <div className="activity-list">{dashboard.recentAttempts.slice(0, 4).map((attempt: any) => <div key={attempt.id}><span className={attempt.isCorrect ? "activity-good" : "activity-try"}>{attempt.isCorrect ? <Check size={15} /> : <WandSparkles size={15} />}</span><div><b>{t(`skills.${skillKeyToTranslation(attempt.skillKey)}`)}</b><small>{attempt.isCorrect ? t("rewards.correctAnswer") : t("rewards.braveTry")}</small></div></div>)}</div> : <div className="empty-inline"><Compass size={24} /><p>{t("parent.noActivity")}</p></div>}</article><article className="privacy-card"><LockKeyhole size={21} /><div><b>{t("parent.privacy")}</b><p>{t("parent.privacyDetail")}</p></div></article></section><section className="parent-controls"><div><p>{t("parent.weeklyReport")}</p><b>{number(weekly?.summary?.accuracy ?? 0)}% {t("parent.accuracy")}</b><small>{number(weekly?.summary?.attempts ?? 0)} {t("parent.questions")}</small></div><label><input type="checkbox" checked={preferences?.weeklyReportEnabled ?? true} onChange={event => updatePreferences.mutate({ weeklyReportEnabled: event.target.checked })} />{t("parent.weeklyReminder")}</label><button className="secondary-button" onClick={downloadExport} disabled={exportChild.isFetching}><span>{t("parent.exportData")}</span><ArrowRight size={16} /></button></section>
   </main>;
 }
 
@@ -169,10 +221,16 @@ function AppFailure({ retry }: { retry: () => void }) {
   return <main className="app-main"><section className="empty-state rounded-[24px] border border-[#e4deee] bg-white shadow-[0_8px_22px_rgba(67,48,113,.09)]"><CircleHelp size={30} /><h1 className="text-[28px]">{t("common.error")}</h1><p>{t("offline.offlineDetail")}</p><button className="secondary-button" onClick={retry}>{t("common.retry")}</button></section></main>;
 }
 
+function AdventureLoadingSkeleton() {
+  const { t } = useLocale();
+  return <div className="skeleton-shell" aria-busy="true" aria-live="polite"><header className="skeleton-header"><span className="skeleton-brand-mark" /><b>{t("brand.name")}</b><span className="skeleton-header-line" /></header><main className="skeleton-main"><section className="skeleton-welcome"><div><span className="skeleton-kicker" /><span className="skeleton-title" /><span className="skeleton-copy" /></div><span className="skeleton-orb" /></section><section className="skeleton-card-grid"><i /><i /><i /></section><p>{t("common.loading")}</p></main></div>;
+}
+
 function AdminPanel({ curriculum }: { curriculum: any }) {
   const { t, number } = useLocale();
   const seed = trpc.admin.seedStarterContent.useMutation();
-  return <main className="app-main admin-page"><section className="parent-heading"><div><p className="eyebrow"><Backpack size={15} />{t("admin.title")}</p><h1>{t("admin.title")}</h1><p>{t("admin.description")}</p></div></section><section className="admin-grid"><article className="admin-summary-card"><span className="recommendation-star"><Sparkles size={22} /></span><p>{t("admin.curriculum")}</p><h2>{number(curriculum?.worlds?.length ?? 0)} {t("admin.worlds")}</h2><div className="admin-counts"><span>{number(curriculum?.skills?.length ?? 0)} {t("admin.skills")}</span><span>{number(curriculum?.lessons?.length ?? 0)} {t("admin.lessons")}</span></div><button className="primary-button" onClick={() => seed.mutate()} disabled={seed.isPending}><span>{seed.isPending ? t("common.loading") : t("admin.seed")}</span><Sparkles size={17} /></button>{seed.isSuccess && <p className="admin-success"><Check size={14} />{t("admin.saved")}</p>}</article><article className="admin-list-card"><div className="section-title"><div><p>{t("admin.curriculum")}</p><h2>{t("map.title")}</h2></div><Compass size={20} /></div><div className="admin-world-list">{curriculum?.worlds?.map((world: any) => <div key={world.key}><span className={`card-icon ${world.accent === "mint" ? "mint" : world.accent === "sun" ? "sun" : "sky"}`}>{number(world.order)}</span><div><b>{t(world.nameKey)}</b><small>{t(world.descriptionKey)}</small></div><strong>{number(curriculum?.skills?.filter((skill: any) => skill.worldKey === world.key).length ?? 0)}</strong></div>)}</div></article></section></main>;
+  const { data: analytics } = trpc.admin.analytics.useQuery();
+  return <main className="app-main admin-page"><section className="parent-heading"><div><p className="eyebrow"><Backpack size={15} />{t("admin.title")}</p><h1>{t("admin.title")}</h1><p>{t("admin.description")}</p></div></section><section className="admin-grid"><article className="admin-summary-card"><span className="recommendation-star"><Sparkles size={22} /></span><p>{t("admin.curriculum")}</p><h2>{number(curriculum?.worlds?.length ?? 0)} {t("admin.worlds")}</h2><div className="admin-counts"><span>{number(curriculum?.skills?.length ?? 0)} {t("admin.skills")}</span><span>{number(curriculum?.lessons?.length ?? 0)} {t("admin.lessons")}</span></div><button className="primary-button" onClick={() => seed.mutate()} disabled={seed.isPending}><span>{seed.isPending ? t("common.loading") : t("admin.seed")}</span><Sparkles size={17} /></button>{seed.isSuccess && <p className="admin-success"><Check size={14} />{t("admin.saved")}</p>}</article><article className="admin-list-card"><div className="section-title"><div><p>{t("admin.analytics")}</p><h2>{t("admin.productHealth")}</h2></div><BarChart3 size={20} /></div><div className="admin-counts admin-metrics"><span>{number(analytics?.activeChildren ?? 0)} {t("admin.children")}</span><span>{number(analytics?.accuracy ?? 0)}% {t("parent.accuracy")}</span><span>{number(analytics?.attempts ?? 0)} {t("parent.questions")}</span></div><div className="admin-world-list">{curriculum?.worlds?.map((world: any) => <div key={world.key}><span className={`card-icon ${world.accent === "mint" ? "mint" : world.accent === "sun" ? "sun" : "sky"}`}>{number(world.order)}</span><div><b>{t(world.nameKey)}</b><small>{t(world.descriptionKey)}</small></div><strong>{number(curriculum?.skills?.filter((skill: any) => skill.worldKey === world.key).length ?? 0)}</strong></div>)}</div></article></section></main>;
 }
 
 function ProfileEditor({ child, close, saved }: { child: any; close: () => void; saved: () => void }) {
@@ -182,13 +240,14 @@ function ProfileEditor({ child, close, saved }: { child: any; close: () => void;
   return <div className="modal-scrim"><form className="profile-modal" onSubmit={event => { event.preventDefault(); updateChild.mutate({ childId: child.id, displayName: name, age, grade, avatarKey, locale }); }}><button className="modal-close" type="button" onClick={close} aria-label={t("common.close")}><X size={19} /></button><p className="eyebrow"><UserRound size={15} />{t("parent.manageProfile")}</p><h2>{child.displayName}</h2><label><span>{t("onboarding.name")}</span><input value={name} onChange={event => setName(event.target.value)} /></label><div className="form-row"><label><span>{t("onboarding.age")}</span><select value={age} onChange={event => setAge(Number(event.target.value))}>{Array.from({ length: 9 }, (_, index) => index + 6).map(value => <option value={value} key={value}>{number(value)}</option>)}</select></label><label><span>{t("onboarding.grade")}</span><input value={grade} onChange={event => setGrade(event.target.value)} /></label></div><fieldset><legend>{t("onboarding.avatar")}</legend><div className="avatar-choices">{(Object.keys(EXPLORER_AVATARS) as AvatarKey[]).map(key => <button className={`avatar-choice ${avatarKey === key ? "is-selected" : ""}`} type="button" key={key} onClick={() => setAvatarKey(key)}><ExplorerPortrait avatarKey={key} size="sm" alt="" /></button>)}</div></fieldset><button className="primary-button form-submit" type="submit" disabled={updateChild.isPending}><span>{t("common.save")}</span><Check size={17} /></button></form></div>;
 }
 
-function AppExperience() {
+function AppExperience({ auth }: { auth: ReturnType<typeof useAuth> }) {
   const { t } = useLocale();
-  const { user, loading, isAuthenticated, logout } = useAuth();
+  const { user, loading, isAuthenticated, logout } = auth;
   const { data: children, isLoading: childrenLoading, error: childrenError, refetch: refetchChildren } = trpc.profile.listChildren.useQuery(undefined, { enabled: isAuthenticated });
   const [activeChildId, setActiveChildId] = useState<string | null>(null);
   const [screen, setScreen] = useState<Screen>("home");
   const [lessonSkill, setLessonSkill] = useState("count-to-20");
+  const [bossWorld, setBossWorld] = useState("number-valley");
   const [isBattle, setIsBattle] = useState(false);
   const [editing, setEditing] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -204,16 +263,25 @@ function AppExperience() {
   const activeChild = children?.find(child => child.id === activeChildId) ?? children?.[0];
   const { data: dashboard, isLoading: dashboardLoading, error: dashboardError, refetch: refetchDashboard } = trpc.learning.dashboard.useQuery({ childId: activeChild?.id ?? "00000000-0000-0000-0000-000000000000" }, { enabled: Boolean(activeChild?.id) });
   const { data: curriculum, error: curriculumError, refetch: refetchCurriculum } = trpc.learning.curriculum.useQuery(undefined, { enabled: Boolean(activeChild?.id) });
-  const beginLesson = (skillKey: string, battle = false) => { setLessonSkill(skillKey); setIsBattle(battle); setScreen(battle ? "battle" : "lesson"); };
+  const beginLesson = (skillKey: string, battle = false) => { if (skillKey.startsWith("boss:")) { setBossWorld(skillKey.slice(5)); setScreen("boss"); return; } setLessonSkill(skillKey); setIsBattle(battle); setScreen(battle ? "battle" : "lesson"); };
+  const beginBoss = (worldKey: string) => { setBossWorld(worldKey); setScreen("boss"); };
   const exitLesson = () => { refetchDashboard(); refetchChildren(); setScreen("home"); };
   const entryState = resolveParentEntryState({ authLoading: loading, authenticated: isAuthenticated, childrenLoading, hasChildrenError: Boolean(childrenError), childCount: children?.length ?? 0 });
-  if (entryState === "loading") return <div className="app-loading"><Sparkles size={28} /><p>{t("common.loading")}</p></div>;
+  if (entryState === "loading") return <AdventureLoadingSkeleton />;
   if (entryState === "landing") return null;
   if (entryState === "error") return <AppFailure retry={() => refetchChildren()} />;
   if (entryState === "onboarding" || !activeChild) return <Onboarding onCreated={id => { setActiveChildId(id); refetchChildren(); }} />;
   if (screen === "lesson" || screen === "battle") return <LessonExperience childId={activeChild.id} skillKey={lessonSkill} isBattle={isBattle} exit={exitLesson} />;
+  if (screen === "boss") return <BossExperience childId={activeChild.id} worldKey={bossWorld} exit={exitLesson} />;
   const retryProtectedData = () => { refetchDashboard(); refetchCurriculum(); };
-  return <div className="app-shell"><Navigation screen={screen} setScreen={setScreen} onSignOut={logout} isAdmin={user?.role === "admin"} installPrompt={installPrompt} onInstall={requestInstall} />{dashboardLoading ? <div className="app-loading"><Sparkles size={28} /><p>{t("common.loading")}</p></div> : (dashboardError || curriculumError) ? <AppFailure retry={retryProtectedData} /> : <>{screen === "home" && <ChildDashboard child={activeChild} dashboard={dashboard} curriculum={curriculum} setScreen={setScreen} startLesson={beginLesson} />}{screen === "map" && <AdventureMap curriculum={curriculum} childDashboard={dashboard} startLesson={beginLesson} />}{screen === "parent" && <ParentDashboard child={activeChild} dashboard={dashboard} curriculum={curriculum} onEdit={() => setEditing(true)} />}{screen === "admin" && (user?.role === "admin" ? <AdminPanel curriculum={curriculum} /> : <AccessDenied returnHome={() => setScreen("home")} />)}</>}{editing && <ProfileEditor child={activeChild} close={() => setEditing(false)} saved={() => { refetchChildren(); refetchDashboard(); }} />}</div>;
+  return <div className="app-shell"><Navigation screen={screen} setScreen={setScreen} onSignOut={logout} isAdmin={user?.role === "admin"} installPrompt={installPrompt} onInstall={requestInstall} />{dashboardLoading ? <AdventureLoadingSkeleton /> : (dashboardError || curriculumError) ? <AppFailure retry={retryProtectedData} /> : <>{screen === "home" && <ChildDashboard child={activeChild} dashboard={dashboard} curriculum={curriculum} setScreen={setScreen} startLesson={beginLesson} />}{screen === "map" && <AdventureMap curriculum={curriculum} childDashboard={dashboard} startLesson={beginLesson} />}{screen === "parent" && <ParentDashboard child={activeChild} dashboard={dashboard} curriculum={curriculum} onEdit={() => setEditing(true)} />}{screen === "admin" && (user?.role === "admin" ? <AdminPanel curriculum={curriculum} /> : <AccessDenied returnHome={() => setScreen("home")} />)}</>}{editing && <ProfileEditor child={activeChild} close={() => setEditing(false)} saved={() => { refetchChildren(); refetchDashboard(); }} />}</div>;
 }
 
-export default function Home() { return <AppExperience />; }
+function StandaloneAdventure() {
+  const auth = useAuth();
+  return <AppExperience auth={auth} />;
+}
+
+export default function Home({ auth }: { auth?: ReturnType<typeof useAuth> }) {
+  return auth ? <AppExperience auth={auth} /> : <StandaloneAdventure />;
+}

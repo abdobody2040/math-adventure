@@ -36,5 +36,28 @@
 - [ ] Fix the mobile onboarding hero clipping and validate the revised mobile layout against the supplied screenshot.
 - [ ] Diagnose and fix the newly reported runtime error in the current application build.
 - [x] Reduce the real startup latency of the public route and verify the initial screen no longer lingers on a loading state.
+- [x] Replace the blank authenticated loading state with a fast, context-rich dashboard skeleton while protected learning data resolves.
 - [ ] Reproduce the reported runtime error in a fresh browser session and document its exact failing screen, request, or console message.
 - [ ] Run a fresh post-fix browser-console and network validation after the updated service worker is active.
+- [ ] Document the confirmed root cause by tying the observed affected-flow failure to the specific code change that resolves it.
+- [ ] Compare the implemented product against the supplied PRD and document only missing or partially implemented capabilities.
+- [ ] Extend the question engine with numeric input, true/false, ordering, matching, visual selection, word-problem, timed, and boss-question templates.
+- [ ] Implement an adaptive learning service that uses accuracy, speed, attempts, hints, and recent performance to select the next activity and difficulty.
+- [x] Implement multi-skill boss battles with gentle health mechanics, retries, explanations, unlock rewards, and completion records.
+- [x] Add the remaining five PRD worlds and their seeded skills, lessons, templates, and progression rules.
+- [ ] Add avatar cosmetics, inventory, healthy pets, daily and weekly quest variety, and cosmetic reward redemption.
+- [ ] Expand parent controls for multiple children, child deletion, privacy preferences, export requests, weekly reports, and notification settings.
+- [ ] Convert the administrator view into secured CRUD management for curriculum, questions, rewards, quests, and difficulty settings.
+- [ ] Add privacy-conscious product analytics, event tracking, and administrator analytics summaries.
+- [ ] Add subscription plans, entitlement checks, and secure payment integration after payment-provider setup is available.
+- [ ] Add the constrained premium AI tutor with guided hints and practice support after the AI integration is configured.
+- [ ] Add offline progress queuing, secure sync, and duplicate-reward conflict prevention.
+- [ ] Add end-to-end, accessibility, rate-limit, and performance audit coverage for the completed PRD flows.
+- [ ] Implement real boss-question templates and boss-session generation, then cover them with gameplay tests.
+- [ ] Build distinct answer interactions for ordering, matching, and visual-selection formats instead of generic answer buttons.
+- [ ] Make the server choose the next adaptive skill, activity, and difficulty; remove the fixed client difficulty path.
+- [ ] Calculate and persist recent-performance metrics for adaptive decisions and test their effect on selected next activity and difficulty.
+- [ ] Implement true matching and visual-selection mechanics backed by dedicated presentation data instead of styled generic buttons.
+- [ ] Create dedicated boss-question templates and content rather than relabeling normal skill questions.
+- [ ] Make server-selected adaptive activity override fixed client-requested skills when a remediation or advancement path is indicated.
+- [ ] Add regression tests proving adaptive recommendations change the actual next skill, activity, and difficulty.

@@ -49,6 +49,7 @@ export const childProfiles = mysqlTable(
     level: int("level").default(1).notNull(),
     streakDays: int("streakDays").default(0).notNull(),
     lastPracticeAt: timestamp("lastPracticeAt"),
+    deletedAt: timestamp("deletedAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -226,6 +227,155 @@ export const rewardTransactions = mysqlTable(
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => [index("reward_transactions_child_idx").on(table.childId)],
+);
+
+export const parentPreferences = mysqlTable(
+  "parent_preferences",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    parentId: varchar("parentId", { length: 36 }).notNull().unique().references(() => parentProfiles.id, { onDelete: "cascade" }),
+    weeklyReportEnabled: boolean("weeklyReportEnabled").default(true).notNull(),
+    learningReminderEnabled: boolean("learningReminderEnabled").default(true).notNull(),
+    dataExportAllowed: boolean("dataExportAllowed").default(true).notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [index("parent_preferences_parent_idx").on(table.parentId)],
+);
+
+export const inventoryItems = mysqlTable("inventory_items", {
+  key: varchar("key", { length: 64 }).primaryKey(),
+  titleKey: varchar("titleKey", { length: 128 }).notNull(),
+  category: mysqlEnum("category", ["outfit", "accessory", "backpack", "effect", "pet"]).notNull(),
+  costCoins: int("costCoins").default(0).notNull(),
+  assetKey: varchar("assetKey", { length: 64 }).notNull(),
+  isPublished: boolean("isPublished").default(true).notNull(),
+});
+
+export const childInventory = mysqlTable(
+  "child_inventory",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    childId: varchar("childId", { length: 36 }).notNull().references(() => childProfiles.id, { onDelete: "cascade" }),
+    itemKey: varchar("itemKey", { length: 64 }).notNull().references(() => inventoryItems.key, { onDelete: "cascade" }),
+    equipped: boolean("equipped").default(false).notNull(),
+    acquiredAt: timestamp("acquiredAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("child_inventory_child_item_uq").on(table.childId, table.itemKey), index("child_inventory_child_idx").on(table.childId)],
+);
+
+export const pets = mysqlTable("pets", {
+  key: varchar("key", { length: 64 }).primaryKey(),
+  titleKey: varchar("titleKey", { length: 128 }).notNull(),
+  descriptionKey: varchar("descriptionKey", { length: 128 }).notNull(),
+  assetKey: varchar("assetKey", { length: 64 }).notNull(),
+  unlockCoins: int("unlockCoins").default(0).notNull(),
+  isPublished: boolean("isPublished").default(true).notNull(),
+});
+
+export const childPets = mysqlTable(
+  "child_pets",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    childId: varchar("childId", { length: 36 }).notNull().references(() => childProfiles.id, { onDelete: "cascade" }),
+    petKey: varchar("petKey", { length: 64 }).notNull().references(() => pets.key, { onDelete: "cascade" }),
+    displayName: varchar("displayName", { length: 32 }),
+    level: int("level").default(1).notNull(),
+    equipped: boolean("equipped").default(false).notNull(),
+    unlockedAt: timestamp("unlockedAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("child_pets_child_pet_uq").on(table.childId, table.petKey), index("child_pets_child_idx").on(table.childId)],
+);
+
+export const bossDefinitions = mysqlTable("boss_definitions", {
+  worldKey: varchar("worldKey", { length: 64 }).primaryKey().references(() => worlds.key, { onDelete: "cascade" }),
+  titleKey: varchar("titleKey", { length: 128 }).notNull(),
+  health: int("health").default(100).notNull(),
+  rewardXp: int("rewardXp").default(60).notNull(),
+  rewardCoins: int("rewardCoins").default(25).notNull(),
+  badgeKey: varchar("badgeKey", { length: 64 }),
+});
+
+export const bossAttempts = mysqlTable(
+  "boss_attempts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    childId: varchar("childId", { length: 36 }).notNull().references(() => childProfiles.id, { onDelete: "cascade" }),
+    worldKey: varchar("worldKey", { length: 64 }).notNull().references(() => worlds.key, { onDelete: "cascade" }),
+    healthRemaining: int("healthRemaining").notNull(),
+    completedAt: timestamp("completedAt"),
+    startedAt: timestamp("startedAt").defaultNow().notNull(),
+  },
+  table => [index("boss_attempts_child_world_idx").on(table.childId, table.worldKey)],
+);
+
+export const adaptiveRecommendations = mysqlTable(
+  "adaptive_recommendations",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    childId: varchar("childId", { length: 36 }).notNull().references(() => childProfiles.id, { onDelete: "cascade" }),
+    skillKey: varchar("skillKey", { length: 64 }).notNull().references(() => skills.key, { onDelete: "cascade" }),
+    action: mysqlEnum("action", ["practice", "advance", "review", "remediate"]).notNull(),
+    difficulty: int("difficulty").default(1).notNull(),
+    reasonKey: varchar("reasonKey", { length: 128 }).notNull(),
+    priority: int("priority").default(1).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    dismissedAt: timestamp("dismissedAt"),
+  },
+  table => [index("adaptive_recommendations_child_idx").on(table.childId, table.dismissedAt)],
+);
+
+export const weeklyReports = mysqlTable(
+  "weekly_reports",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    childId: varchar("childId", { length: 36 }).notNull().references(() => childProfiles.id, { onDelete: "cascade" }),
+    weekKey: varchar("weekKey", { length: 10 }).notNull(),
+    summary: json("summary").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("weekly_reports_child_week_uq").on(table.childId, table.weekKey)],
+);
+
+export const analyticsEvents = mysqlTable(
+  "analytics_events",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    parentId: varchar("parentId", { length: 36 }).references(() => parentProfiles.id, { onDelete: "set null" }),
+    childId: varchar("childId", { length: 36 }).references(() => childProfiles.id, { onDelete: "set null" }),
+    eventKey: varchar("eventKey", { length: 64 }).notNull(),
+    payload: json("payload"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [index("analytics_events_key_idx").on(table.eventKey, table.createdAt), index("analytics_events_child_idx").on(table.childId, table.createdAt)],
+);
+
+export const subscriptions = mysqlTable(
+  "subscriptions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    parentId: varchar("parentId", { length: 36 }).notNull().references(() => parentProfiles.id, { onDelete: "cascade" }),
+    plan: mysqlEnum("plan", ["free", "premium", "family"]).default("free").notNull(),
+    status: mysqlEnum("status", ["active", "trialing", "past_due", "canceled"]).default("active").notNull(),
+    providerCustomerId: varchar("providerCustomerId", { length: 128 }),
+    providerSubscriptionId: varchar("providerSubscriptionId", { length: 128 }),
+    currentPeriodEnd: timestamp("currentPeriodEnd"),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("subscriptions_parent_uq").on(table.parentId)],
+);
+
+export const offlineSyncOperations = mysqlTable(
+  "offline_sync_operations",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    childId: varchar("childId", { length: 36 }).notNull().references(() => childProfiles.id, { onDelete: "cascade" }),
+    idempotencyKey: varchar("idempotencyKey", { length: 96 }).notNull(),
+    operationType: varchar("operationType", { length: 64 }).notNull(),
+    payload: json("payload").notNull(),
+    processedAt: timestamp("processedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("offline_sync_child_idempotency_uq").on(table.childId, table.idempotencyKey), index("offline_sync_child_idx").on(table.childId, table.processedAt)],
 );
 
 export type User = typeof users.$inferSelect;

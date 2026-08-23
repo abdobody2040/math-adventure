@@ -7,17 +7,36 @@ import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import {
   createChild,
+  createBossQuestion,
   createLearningSession,
   createQuestionSession,
+  adminSaveQuestionTemplate,
+  adminSaveQuest,
+  adminSaveSkill,
+  adminSaveWorld,
   completeLearningSession,
   getChildDashboard,
+  getChildRewards,
+  getParentPreferences,
+  getWeeklyReport,
+  getAdaptiveNextQuestion,
+  getAdminAnalyticsSummary,
   getCurriculum,
   listChildren,
   recordAnswer,
+  recordBossAnswer,
+  redeemInventoryItem,
   seedStarterContent,
+  syncOfflineAnswers,
+  startBossAttempt,
+  softDeleteChild,
+  unlockPet,
+  updateParentPreferences,
   updateChild,
+  exportChildData,
 } from "./db";
 import { generateQuestion } from "./learningEngine";
+import { createTutorHint } from "./tutor";
 
 const childIdInput = z.object({ childId: z.string().uuid() });
 
@@ -51,16 +70,22 @@ export const appRouter = router({
       avatarKey: z.string().trim().min(1).max(64).optional(),
       locale: z.enum(["en", "ar"]).optional(),
     })).mutation(({ ctx, input }) => updateChild(ctx.user.id, input.childId, input)),
+    deleteChild: protectedProcedure.input(childIdInput).mutation(({ ctx, input }) => softDeleteChild(ctx.user.id, input.childId)),
+    exportChild: protectedProcedure.input(childIdInput).query(({ ctx, input }) => exportChildData(ctx.user.id, input.childId)),
+    weeklyReport: protectedProcedure.input(childIdInput).query(({ ctx, input }) => getWeeklyReport(ctx.user.id, input.childId)),
+    preferences: protectedProcedure.query(({ ctx }) => getParentPreferences(ctx.user.id)),
+    updatePreferences: protectedProcedure.input(z.object({ weeklyReportEnabled: z.boolean().optional(), learningReminderEnabled: z.boolean().optional(), dataExportAllowed: z.boolean().optional() })).mutation(({ ctx, input }) => updateParentPreferences(ctx.user.id, input)),
   }),
   learning: router({
     curriculum: protectedProcedure.query(() => getCurriculum()),
     dashboard: protectedProcedure.input(childIdInput).query(({ ctx, input }) => getChildDashboard(ctx.user.id, input.childId)),
-    nextQuestion: protectedProcedure.input(childIdInput.extend({ skillKey: z.string().min(1).max(64), difficulty: z.number().int().min(1).max(5).default(1) }))
+    nextQuestion: protectedProcedure.input(childIdInput.extend({ skillKey: z.string().min(1).max(64).optional() }))
       .mutation(async ({ ctx, input }) => {
+        const adaptive = await getAdaptiveNextQuestion(ctx.user.id, { childId: input.childId, requestedSkillKey: input.skillKey });
         const sessionId = randomUUID();
-        const generated = generateQuestion(input.skillKey, input.difficulty, sessionId);
-        const session = await createQuestionSession(ctx.user.id, input.childId, input.skillKey, generated.presentation, generated.correctAnswer, sessionId);
-        return { questionSessionId: session.id, expiresAt: session.expiresAt, presentation: generated.presentation, explanationKey: generated.explanationKey };
+        const generated = generateQuestion(adaptive.skillKey, adaptive.difficulty, sessionId);
+        const session = await createQuestionSession(ctx.user.id, input.childId, adaptive.skillKey, generated.presentation, generated.correctAnswer, sessionId);
+        return { questionSessionId: session.id, expiresAt: session.expiresAt, presentation: generated.presentation, explanationKey: generated.explanationKey, adaptive };
       }),
     startSession: protectedProcedure.input(childIdInput.extend({ skillKey: z.string().min(1).max(64), mode: z.enum(["lesson", "battle"]) }))
       .mutation(({ ctx, input }) => createLearningSession(ctx.user.id, input)),
@@ -69,9 +94,33 @@ export const appRouter = router({
     submitAnswer: protectedProcedure.input(childIdInput.extend({
       questionSessionId: z.string().uuid(), answer: z.string().trim().min(1).max(32), responseTimeMs: z.number().int().min(0).max(15 * 60 * 1000), usedHint: z.boolean().default(false),
     })).mutation(({ ctx, input }) => recordAnswer(ctx.user.id, input)),
+    boss: router({
+      start: protectedProcedure.input(childIdInput.extend({ worldKey: z.string().min(1).max(64) })).mutation(({ ctx, input }) => startBossAttempt(ctx.user.id, input)),
+      nextQuestion: protectedProcedure.input(childIdInput.extend({ bossAttemptId: z.string().uuid() })).mutation(({ ctx, input }) => createBossQuestion(ctx.user.id, input)),
+      submitAnswer: protectedProcedure.input(childIdInput.extend({ bossAttemptId: z.string().uuid(), questionSessionId: z.string().uuid(), answer: z.string().trim().min(1).max(32), responseTimeMs: z.number().int().min(0).max(15 * 60 * 1000), usedHint: z.boolean().default(false) })).mutation(({ ctx, input }) => recordBossAnswer(ctx.user.id, input)),
+    }),
+  }),
+  rewards: router({
+    collection: protectedProcedure.input(childIdInput).query(({ ctx, input }) => getChildRewards(ctx.user.id, input.childId)),
+    redeemItem: protectedProcedure.input(childIdInput.extend({ itemKey: z.string().min(1).max(64) })).mutation(({ ctx, input }) => redeemInventoryItem(ctx.user.id, input)),
+    unlockPet: protectedProcedure.input(childIdInput.extend({ petKey: z.string().min(1).max(64) })).mutation(({ ctx, input }) => unlockPet(ctx.user.id, input)),
+  }),
+  tutor: router({
+    hint: protectedProcedure.input(childIdInput.extend({ skillKey: z.string().min(1).max(64), presentation: z.unknown(), locale: z.enum(["en", "ar"]) })).mutation(async ({ ctx, input }) => {
+      await getChildDashboard(ctx.user.id, input.childId);
+      return { hint: await createTutorHint({ skillKey: input.skillKey, presentation: input.presentation, locale: input.locale }) };
+    }),
+  }),
+  sync: router({
+    answers: protectedProcedure.input(childIdInput.extend({ operations: z.array(z.object({ idempotencyKey: z.string().uuid(), questionSessionId: z.string().uuid(), answer: z.string().trim().min(1).max(32), responseTimeMs: z.number().int().min(0).max(15 * 60 * 1000), usedHint: z.boolean() })).max(20) })).mutation(({ ctx, input }) => syncOfflineAnswers(ctx.user.id, input)),
   }),
   admin: router({
     seedStarterContent: adminProcedure.mutation(() => seedStarterContent()),
+    analytics: adminProcedure.query(() => getAdminAnalyticsSummary()),
+    saveWorld: adminProcedure.input(z.object({ key: z.string().min(1).max(64), order: z.number().int().min(1), nameKey: z.string().min(1).max(128), descriptionKey: z.string().min(1).max(128), accent: z.string().min(1).max(32), iconKey: z.string().min(1).max(64), isPublished: z.boolean() })).mutation(({ input }) => adminSaveWorld(input)),
+    saveSkill: adminProcedure.input(z.object({ key: z.string().min(1).max(64), worldKey: z.string().min(1).max(64), order: z.number().int().min(1), nameKey: z.string().min(1).max(128), generatorKey: z.string().min(1).max(64), isPublished: z.boolean() })).mutation(({ input }) => adminSaveSkill(input)),
+    saveQuestionTemplate: adminProcedure.input(z.object({ key: z.string().min(1).max(64), skillKey: z.string().min(1).max(64), kind: z.string().min(1).max(64), difficulty: z.number().int().min(1).max(5), isEnabled: z.boolean() })).mutation(({ input }) => adminSaveQuestionTemplate(input)),
+    saveQuest: adminProcedure.input(z.object({ key: z.string().min(1).max(64), titleKey: z.string().min(1).max(128), target: z.number().int().min(1), rewardXp: z.number().int().min(0), rewardCoins: z.number().int().min(0), isDaily: z.boolean() })).mutation(({ input }) => adminSaveQuest(input)),
   }),
 });
 

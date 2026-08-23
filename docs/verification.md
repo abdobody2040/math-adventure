@@ -28,6 +28,12 @@ The authenticated account in the managed database was confirmed to have a parent
 
 The expanded validation suite now reports 12 passing tests, including client entry-flow coverage for the zero-child onboarding state and recoverable child-data loading failures. Type checking and the production build also pass after this repair.
 
+## Runtime and loading repair
+
+A fresh authenticated preview exposed two user-visible quality defects: the second generated explorer portrait had resolved to an image-generation failure placeholder, and the page could briefly show a sparse spinner while the dashboard data resolved. The failed asset is now replaced by a built-in SVG portrait fallback, with a replacement generated asset reserved separately. The authenticated adventure also receives the already-resolved session state from the application entry point, avoiding a duplicate authentication request. During protected-data loading, it shows a branded dashboard skeleton rather than a blank page.
+
+After restarting the preview, the signed-in child dashboard rendered successfully with progress data. A fresh browser-console audit found no post-restart runtime exceptions, and the earlier Vite WebSocket connection warning was eliminated by disabling unsupported preview HMR connections. The most expensive answer-submission work was also consolidated into concurrent database writes, with short-lived caches for curriculum and parent ownership lookups.
+
 ## Visual polish pass
 
 The visual system received an additional refinement pass across the landing, dashboard, map, lesson, parent, and onboarding surfaces. The pass strengthens the warm cream, explorer-purple, mint, and reward-gold palette; adds layered depth, ambient constellation texture, tactile cards and controls, polished progress treatment, and a more distinctive cosmic-math setup motif. A mobile onboarding capture was reviewed at 375 × 812, confirming readable form hierarchy, large touch targets, clear avatar selection, and an unclipped primary action.
