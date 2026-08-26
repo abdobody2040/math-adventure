@@ -45,6 +45,22 @@ describe("admin content access", () => {
     await expect(caller.admin.analytics()).resolves.toMatchObject({ activeChildren: expect.any(Number), attempts: expect.any(Number), accuracy: expect.any(Number), recentActivity: expect.any(Array) });
   });
 
+  it("allows an administrator to save existing authoring records without creating child data", async () => {
+    const caller = appRouter.createCaller(createUserContext("admin"));
+    const content = await caller.admin.content();
+    const world = content.worlds[0]!;
+    const skill = content.skills[0]!;
+    const template = content.questionTemplates[0]!;
+    const quest = content.quests[0]!;
+    const reward = content.rewards[0]!;
+
+    await expect(caller.admin.saveWorld(world)).resolves.toEqual({ success: true });
+    await expect(caller.admin.saveSkill(skill)).resolves.toEqual({ success: true });
+    await expect(caller.admin.saveQuestionTemplate(template)).resolves.toEqual({ success: true });
+    await expect(caller.admin.saveQuest(quest)).resolves.toEqual({ success: true });
+    await expect(caller.admin.saveReward(reward)).resolves.toEqual({ success: true });
+  });
+
   it("rejects a non-admin caller before changing a reward", async () => {
     const caller = appRouter.createCaller(createUserContext("user"));
 
