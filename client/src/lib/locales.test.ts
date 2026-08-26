@@ -11,6 +11,11 @@ describe("localization", () => {
     expect(formatNumber("ar", 1234)).toBe("١٬٢٣٤");
   });
 
+  it("provides a localized accessible name for the language switcher", () => {
+    expect(translate("en", "common.language")).toBe("Change language");
+    expect(translate("ar", "common.language")).toBe("تغيير اللغة");
+  });
+
   it("returns an unknown key transparently instead of introducing empty UI copy", () => {
     expect(translate("en", "missing.copy")).toBe("missing.copy");
   });

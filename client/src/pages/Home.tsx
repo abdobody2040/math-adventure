@@ -14,7 +14,7 @@ const iconForWorld = (key: string) => ({ "number-valley": Sparkles, "addition-fo
 
 function LanguageToggle() {
   const { locale, setLocale, t } = useLocale();
-  return <button type="button" className="language-toggle" onClick={() => setLocale(locale === "en" ? "ar" : "en")} aria-label={t("common.continue")}><Languages size={17} /><span>{locale === "en" ? "العربية" : "English"}</span></button>;
+  return <button type="button" className="language-toggle" onClick={() => setLocale(locale === "en" ? "ar" : "en")} aria-label={t("common.language")}><Languages size={17} /><span>{locale === "en" ? "العربية" : "English"}</span></button>;
 }
 
 function OfflineIndicator() {
