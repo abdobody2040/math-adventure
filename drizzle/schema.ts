@@ -324,6 +324,21 @@ export const adaptiveRecommendations = mysqlTable(
   table => [index("adaptive_recommendations_child_idx").on(table.childId, table.dismissedAt)],
 );
 
+export const adaptivePerformanceSnapshots = mysqlTable(
+  "adaptive_performance_snapshots",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    childId: varchar("childId", { length: 36 }).notNull().references(() => childProfiles.id, { onDelete: "cascade" }),
+    skillKey: varchar("skillKey", { length: 64 }).notNull().references(() => skills.key, { onDelete: "cascade" }),
+    windowSize: int("windowSize").notNull(),
+    correctRateBps: int("correctRateBps").notNull(),
+    averageResponseTimeMs: int("averageResponseTimeMs").notNull(),
+    usedHint: boolean("usedHint").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [index("adaptive_performance_child_skill_idx").on(table.childId, table.skillKey, table.createdAt)],
+);
+
 export const weeklyReports = mysqlTable(
   "weekly_reports",
   {

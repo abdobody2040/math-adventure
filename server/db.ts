@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { randomUUID } from "node:crypto";
 import {
   achievements,
+  adaptivePerformanceSnapshots,
   adaptiveRecommendations,
   analyticsEvents,
   bossAttempts,
@@ -38,7 +39,7 @@ import { ENV } from "./_core/env";
 import { assertChildDataExportAllowed } from "./parentPrivacy";
 import { calculateBossCompletion, calculateBossHealth, createBossQuestionDraft } from "./bossFlow";
 import { recentPerformanceMetrics, selectAdaptiveSkill } from "./adaptiveSelection";
-import { resolveAdaptiveQuestionTarget } from "./nextQuestionTarget";
+import { applyPersistedPerformanceGuard, resolveAdaptiveQuestionTarget } from "./nextQuestionTarget";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let curriculumCache: { expiresAt: number; value: any } | null = null;
@@ -239,26 +240,41 @@ export async function createChild(userId: number, input: { displayName: string; 
   return rows[0]!;
 }
 
-export async function getAdaptiveNextQuestion(userId: number, input: { childId: string; requestedSkillKey?: string }) {
-  const db = await requireDb();
-  await seedStarterContent();
-  const child = await assertOwnedChild(userId, input.childId);
-  await ensureChildWorldProgress(child.id);
-  const [progressRows, worldRows, recommendations] = await Promise.all([
-    db.select().from(skillProgress).where(eq(skillProgress.childId, child.id)),
-    db.select().from(worldProgress).where(and(eq(worldProgress.childId, child.id), eq(worldProgress.isUnlocked, true))),
-    db.select().from(adaptiveRecommendations).where(and(eq(adaptiveRecommendations.childId, child.id), isNull(adaptiveRecommendations.dismissedAt))).orderBy(desc(adaptiveRecommendations.createdAt)).limit(1),
-  ]);
-  const unlockedWorlds = new Set(worldRows.map(item => item.worldKey));
+export type PersistedAdaptiveQuestionInput = {
+  progressRows: { skillKey: string; mastery: number }[];
+  unlockedWorldKeys: string[];
+  recommendations: { skillKey: string; action: "practice" | "advance" | "review" | "remediate"; difficulty: number }[];
+  snapshots: { skillKey: string; correctRateBps: number; averageResponseTimeMs: number; usedHint: boolean }[];
+  requestedSkillKey?: string;
+};
+
+export function resolvePersistedAdaptiveQuestion(input: PersistedAdaptiveQuestionInput) {
+  const unlockedWorlds = new Set(input.unlockedWorldKeys);
   const unlockedSkills = starterSkills.filter(skill => unlockedWorlds.has(skill.worldKey));
-  const progressBySkill = new Map(progressRows.map(item => [item.skillKey, item]));
+  const progressBySkill = new Map(input.progressRows.map(item => [item.skillKey, item]));
   const target = resolveAdaptiveQuestionTarget({
     unlockedSkills: unlockedSkills.length ? unlockedSkills : starterSkills,
     masteryBySkill: new Map(progressBySkill.entries().map(([skillKey, progress]) => [skillKey, progress.mastery])),
     requestedSkillKey: input.requestedSkillKey,
-    recommendation: recommendations[0] ? { skillKey: recommendations[0].skillKey, action: recommendations[0].action, difficulty: recommendations[0].difficulty } : undefined,
+    recommendation: input.recommendations[0] ? { skillKey: input.recommendations[0].skillKey, action: input.recommendations[0].action, difficulty: input.recommendations[0].difficulty } : undefined,
   });
-  return { ...target, activity: activityForAdaptiveAction(target.action) };
+  const guardedTarget = applyPersistedPerformanceGuard(target, input.snapshots.find(snapshot => snapshot.skillKey === target.skillKey));
+  return { ...guardedTarget, activity: activityForAdaptiveAction(guardedTarget.action) };
+}
+
+export async function getAdaptiveNextQuestion(userId: number, input: { childId: string; requestedSkillKey?: string }, readForTest?: () => Promise<Omit<PersistedAdaptiveQuestionInput, "requestedSkillKey">>) {
+  if (readForTest) return resolvePersistedAdaptiveQuestion({ ...(await readForTest()), requestedSkillKey: input.requestedSkillKey });
+  const db = await requireDb();
+  await seedStarterContent();
+  const child = await assertOwnedChild(userId, input.childId);
+  await ensureChildWorldProgress(child.id);
+  const [progressRows, worldRows, recommendations, snapshots] = await Promise.all([
+    db.select().from(skillProgress).where(eq(skillProgress.childId, child.id)),
+    db.select().from(worldProgress).where(and(eq(worldProgress.childId, child.id), eq(worldProgress.isUnlocked, true))),
+    db.select().from(adaptiveRecommendations).where(and(eq(adaptiveRecommendations.childId, child.id), isNull(adaptiveRecommendations.dismissedAt))).orderBy(desc(adaptiveRecommendations.createdAt)).limit(1),
+    db.select().from(adaptivePerformanceSnapshots).where(eq(adaptivePerformanceSnapshots.childId, child.id)).orderBy(desc(adaptivePerformanceSnapshots.createdAt)).limit(12),
+  ]);
+  return resolvePersistedAdaptiveQuestion({ progressRows, unlockedWorldKeys: worldRows.map(item => item.worldKey), recommendations, snapshots, requestedSkillKey: input.requestedSkillKey });
 }
 
 export async function updateChild(userId: number, childId: string, input: { displayName?: string; age?: number; grade?: string; avatarKey?: string; locale?: "en" | "ar" }) {
@@ -457,6 +473,7 @@ export async function recordAnswer(userId: number, input: { childId: string; que
     db.update(childProfiles).set({ xp, coins, level, streakDays: nextStreak, lastPracticeAt: now }).where(eq(childProfiles.id, child.id)),
     db.insert(questProgress).values({ id: quest?.id ?? randomUUID(), childId: child.id, questKey: "daily-five", periodKey, progress: questValue, completedAt: questValue >= starterQuest.target ? now : null }).onDuplicateKeyUpdate({ set: { progress: questValue, completedAt: questValue >= starterQuest.target ? now : null } }),
     db.insert(adaptiveRecommendations).values({ id: randomUUID(), childId: child.id, skillKey: recommendationSkillKey, action: adaptive.action, difficulty: adaptive.difficulty, reasonKey: adaptive.reasonKey, priority: adaptive.priority }),
+    db.insert(adaptivePerformanceSnapshots).values({ id: randomUUID(), childId: child.id, skillKey: question.skillKey, windowSize: recentSkillAttempts.length + 1, correctRateBps: Math.round((recentMetrics.correctRate ?? 0) * 10000), averageResponseTimeMs: recentMetrics.averageResponseTimeMs ?? input.responseTimeMs, usedHint: input.usedHint }),
     db.insert(analyticsEvents).values({ id: randomUUID(), parentId: child.parentId, childId: child.id, eventKey: "answer_submitted", payload: { skillKey: question.skillKey, isCorrect, responseTimeMs: input.responseTimeMs, usedHint: input.usedHint } }),
     ...worldWrites,
   ];

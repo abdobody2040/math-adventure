@@ -42,7 +42,7 @@
 - [ ] Document the confirmed root cause by tying the observed affected-flow failure to the specific code change that resolves it.
 - [ ] Compare the implemented product against the supplied PRD and document only missing or partially implemented capabilities.
 - [x] Extend the question engine with numeric input, true/false, ordering, matching, visual selection, word-problem, timed, and boss-question templates.
-- [ ] Implement an adaptive learning service that uses accuracy, speed, attempts, hints, and recent performance to select the next activity and difficulty.
+- [x] Implement an adaptive learning service that uses accuracy, speed, attempts, hints, and recent performance to select the next activity and difficulty.
 - [x] Implement multi-skill boss battles with gentle health mechanics, retries, explanations, unlock rewards, and completion records.
 - [x] Add the remaining five PRD worlds and their seeded skills, lessons, templates, and progression rules.
 - [ ] Add avatar cosmetics, inventory, healthy pets, daily and weekly quest variety, and cosmetic reward redemption.
@@ -56,13 +56,14 @@
 - [ ] Implement real boss-question templates and boss-session generation, then cover them with gameplay tests.
 - [x] Build distinct answer interactions for ordering, matching, and visual-selection formats instead of generic answer buttons.
 - [ ] Make the server choose the next adaptive skill, activity, and difficulty; remove the fixed client difficulty path.
-- [ ] Calculate and persist recent-performance metrics for adaptive decisions and test their effect on selected next activity and difficulty.
+- [x] Calculate and persist recent-performance metrics for adaptive decisions and test their effect on selected next activity and difficulty.
 - [x] Implement true matching and visual-selection mechanics backed by dedicated presentation data instead of styled generic buttons.
 - [x] Create dedicated boss-question templates and content rather than relabeling normal skill questions.
 - [ ] Add protected boss-flow regression coverage for authored boss-session generation, answer progression, and health completion updates.
 - [ ] Make server-selected adaptive activity override fixed client-requested skills when a remediation or advancement path is indicated.
 - [ ] Add regression tests proving adaptive recommendations change the actual next skill, activity, and difficulty.
 - [ ] Exercise the protected adaptive next-question procedure with a server recommendation and assert the returned target overrides the client request.
+- [ ] Cover persisted adaptive-performance snapshots through the real next-question selection path, including activity and difficulty effects.
 - [x] Implement a dedicated visual-selection interaction that consumes visualOptions rather than the generic answer grid, and cover visual, ordering, and matching answer serialization with regression tests.
 - [x] Refactor visual question rendering so LessonExperience does not also emit the hidden generic answer-grid branch, and add client-side serialization regressions for ordering, matching, and visual selections.
 - [x] Enforce the data-export preference in the protected server export path and add regression coverage for blocked exports.
