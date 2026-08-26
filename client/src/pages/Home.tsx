@@ -68,6 +68,20 @@ function StatChip({ icon: Icon, value, label, tint }: { icon: typeof Award; valu
   return <div className={`stat-chip ${tint}`}><span><Icon size={16} /></span><b>{value}</b><small>{label}</small></div>;
 }
 
+function PetIllustration({ petKey }: { petKey: string }) {
+  const isOwl = petKey === "pico-owl";
+  return <svg className="reward-illustration pet-illustration" viewBox="0 0 72 72" role="img" aria-label={isOwl ? "Owl companion" : "Fox companion"}>
+    <circle cx="36" cy="36" r="31" fill={isOwl ? "#d9d0ff" : "#ffe0c2"} />
+    {isOwl ? <><path d="M18 27 25 17l8 9 3-4 4 4 8-9 7 10v23c0 9-8 14-19 14S17 59 17 50V27Z" fill="#6750c7"/><circle cx="28" cy="38" r="9" fill="#fff"/><circle cx="44" cy="38" r="9" fill="#fff"/><circle cx="28" cy="38" r="3" fill="#2f2855"/><circle cx="44" cy="38" r="3" fill="#2f2855"/><path d="m36 42-5 7h10l-5-7Z" fill="#f4b943"/><path d="M26 54c5 3 15 3 20 0" stroke="#fff" strokeWidth="3" strokeLinecap="round"/></> : <><path d="M17 31 23 14l12 10 13-10 7 17c4 17-5 33-19 33S13 48 17 31Z" fill="#e9824a"/><path d="M22 43c0-11 7-19 14-19s14 8 14 19c0 11-7 19-14 19S22 54 22 43Z" fill="#fff3df"/><path d="m36 43-5 6h10l-5-6Z" fill="#382d48"/><circle cx="29" cy="40" r="2.6" fill="#382d48"/><circle cx="43" cy="40" r="2.6" fill="#382d48"/><path d="M25 53c6 3 16 3 22 0" stroke="#e9824a" strokeWidth="3" strokeLinecap="round"/></>}
+  </svg>;
+}
+
+function RewardIllustration({ itemKey }: { itemKey: string }) {
+  if (itemKey === "star-cape") return <svg className="reward-illustration" viewBox="0 0 48 48" aria-hidden="true"><path d="M13 8c7 4 15 4 22 0v30c-7-4-15-4-22 0V8Z" fill="#7958d8"/><path d="m24 14 2.3 5.5 5.9.5-4.5 3.8 1.4 5.7-5.1-3.1-5.1 3.1 1.4-5.7-4.5-3.8 5.9-.5L24 14Z" fill="#ffe47a"/></svg>;
+  if (itemKey === "mint-trail") return <svg className="reward-illustration" viewBox="0 0 48 48" aria-hidden="true"><path d="M10 34c7-17 20-17 28-5" fill="none" stroke="#66cdb7" strokeWidth="6" strokeLinecap="round"/><circle cx="12" cy="34" r="4" fill="#d7fff4"/><circle cx="28" cy="22" r="4" fill="#d7fff4"/><circle cx="38" cy="29" r="4" fill="#d7fff4"/></svg>;
+  return <svg className="reward-illustration" viewBox="0 0 48 48" aria-hidden="true"><path d="M10 18h28v21H10z" fill="#6d5ad1"/><path d="M15 18v-5a9 9 0 0 1 18 0v5" fill="none" stroke="#6d5ad1" strokeWidth="5"/><path d="M18 27h12" stroke="#f8de77" strokeWidth="4" strokeLinecap="round"/></svg>;
+}
+
 function RewardShelf({ child }: { child: any }) {
   const { t, number } = useLocale();
   const { data, refetch } = trpc.rewards.collection.useQuery({ childId: child.id });
@@ -75,7 +89,7 @@ function RewardShelf({ child }: { child: any }) {
   const unlock = trpc.rewards.unlockPet.useMutation({ onSuccess: () => refetch() });
   const ownedItems = new Set((data?.inventory ?? []).map((item: any) => item.itemKey));
   const ownedPets = new Set((data?.pets ?? []).map((pet: any) => pet.petKey));
-  return <section className="reward-shelf"><div className="section-title"><div><p>{t("rewards.collection")}</p><h2>{t("rewards.companions")}</h2></div><Backpack size={20} /></div><div className="reward-grid">{(data?.petCatalog ?? []).map((pet: any) => <article key={pet.key}><span className="pet-orb">{pet.key === "pico-owl" ? "◉" : "✦"}</span><b>{t(pet.titleKey)}</b><small>{t(pet.descriptionKey)}</small><button disabled={ownedPets.has(pet.key) || unlock.isPending} onClick={() => unlock.mutate({ childId: child.id, petKey: pet.key })}>{ownedPets.has(pet.key) ? t("rewards.unlocked") : `${number(pet.unlockCoins)} ${t("dashboard.coins")}`}</button></article>)}</div><div className="cosmetic-row">{(data?.catalog ?? []).map((item: any) => <button key={item.key} disabled={ownedItems.has(item.key) || redeem.isPending} onClick={() => redeem.mutate({ childId: child.id, itemKey: item.key })}><span>{item.key === "star-cape" ? "✧" : item.key === "mint-trail" ? "⌁" : "▣"}</span><b>{t(item.titleKey)}</b><small>{ownedItems.has(item.key) ? t("rewards.unlocked") : `${number(item.costCoins)} ${t("dashboard.coins")}`}</small></button>)}</div></section>;
+  return <section className="reward-shelf"><div className="section-title"><div><p>{t("rewards.collection")}</p><h2>{t("rewards.companions")}</h2></div><Backpack size={20} /></div><div className="reward-grid">{(data?.petCatalog ?? []).map((pet: any) => <article key={pet.key}><PetIllustration petKey={pet.key} /><b>{t(pet.titleKey)}</b><small>{t(pet.descriptionKey)}</small><button disabled={ownedPets.has(pet.key) || unlock.isPending} onClick={() => unlock.mutate({ childId: child.id, petKey: pet.key })}>{ownedPets.has(pet.key) ? t("rewards.unlocked") : `${number(pet.unlockCoins)} ${t("dashboard.coins")}`}</button></article>)}</div><div className="cosmetic-row">{(data?.catalog ?? []).map((item: any) => <button key={item.key} disabled={ownedItems.has(item.key) || redeem.isPending} onClick={() => redeem.mutate({ childId: child.id, itemKey: item.key })}><RewardIllustration itemKey={item.key} /><b>{t(item.titleKey)}</b><small>{ownedItems.has(item.key) ? t("rewards.unlocked") : `${number(item.costCoins)} ${t("dashboard.coins")}`}</small></button>)}</div></section>;
 }
 
 function ChildDashboard({ child, dashboard, curriculum, setScreen, startLesson, startBoss }: { child: any; dashboard: any; curriculum: any; setScreen: (screen: Screen) => void; startLesson: (skillKey: string, battle?: boolean) => void; startBoss: (worldKey: string) => void }) {
