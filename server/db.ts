@@ -33,9 +33,12 @@ import {
   worlds,
 } from "../drizzle/schema";
 import { skillByKey, starterAchievements, starterBosses, starterInventoryItems, starterLessons, starterPets, starterQuest, starterQuestionTemplates, starterQuests, starterSkills, starterWorlds } from "../shared/learningContent";
-import { generateBossQuestion, masteryFrom, recommendAdaptiveNext, rewardForAttempt } from "./learningEngine";
+import { activityForAdaptiveAction, generateBossQuestion, masteryFrom, recommendAdaptiveNext, rewardForAttempt } from "./learningEngine";
 import { ENV } from "./_core/env";
 import { assertChildDataExportAllowed } from "./parentPrivacy";
+import { calculateBossCompletion, calculateBossHealth, createBossQuestionDraft } from "./bossFlow";
+import { recentPerformanceMetrics, selectAdaptiveSkill } from "./adaptiveSelection";
+import { resolveAdaptiveQuestionTarget } from "./nextQuestionTarget";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let curriculumCache: { expiresAt: number; value: any } | null = null;
@@ -249,13 +252,13 @@ export async function getAdaptiveNextQuestion(userId: number, input: { childId: 
   const unlockedWorlds = new Set(worldRows.map(item => item.worldKey));
   const unlockedSkills = starterSkills.filter(skill => unlockedWorlds.has(skill.worldKey));
   const progressBySkill = new Map(progressRows.map(item => [item.skillKey, item]));
-  const requested = input.requestedSkillKey ? unlockedSkills.find(item => item.key === input.requestedSkillKey) : undefined;
-  const recommended = recommendations[0] ? unlockedSkills.find(item => item.key === recommendations[0].skillKey) : undefined;
-  const mustFollowAdaptivePath = recommendations[0]?.action === "remediate" || recommendations[0]?.action === "advance";
-  const skill = (mustFollowAdaptivePath ? recommended : requested ?? recommended) ?? [...unlockedSkills].sort((a, b) => (progressBySkill.get(a.key)?.mastery ?? 0) - (progressBySkill.get(b.key)?.mastery ?? 0))[0] ?? starterSkills[0];
-  const recommendation = recommendations[0];
-  const difficulty = recommendation?.skillKey === skill.key ? recommendation.difficulty : Math.max(1, Math.min(5, Math.ceil((progressBySkill.get(skill.key)?.mastery ?? 0) / 25)) || 1);
-  return { skillKey: skill.key, difficulty, action: recommendation?.action ?? "practice" };
+  const target = resolveAdaptiveQuestionTarget({
+    unlockedSkills: unlockedSkills.length ? unlockedSkills : starterSkills,
+    masteryBySkill: new Map(progressBySkill.entries().map(([skillKey, progress]) => [skillKey, progress.mastery])),
+    requestedSkillKey: input.requestedSkillKey,
+    recommendation: recommendations[0] ? { skillKey: recommendations[0].skillKey, action: recommendations[0].action, difficulty: recommendations[0].difficulty } : undefined,
+  });
+  return { ...target, activity: activityForAdaptiveAction(target.action) };
 }
 
 export async function updateChild(userId: number, childId: string, input: { displayName?: string; age?: number; grade?: string; avatarKey?: string; locale?: "en" | "ar" }) {
@@ -352,7 +355,7 @@ export async function createBossQuestion(userId: number, input: { childId: strin
   await assertOwnedChild(userId, input.childId);
   const attempt = (await db.select().from(bossAttempts).where(and(eq(bossAttempts.id, input.bossAttemptId), eq(bossAttempts.childId, input.childId))).limit(1))[0];
   if (!attempt || attempt.completedAt) throw new Error("learning.error.bossUnavailable");
-  const generated = generateBossQuestion(attempt.worldKey, 3, `${attempt.id}:${Date.now()}`);
+  const generated = createBossQuestionDraft(attempt.worldKey, attempt.id, Date.now());
   const session = await createQuestionSession(userId, input.childId, generated.skillKey, generated.presentation, generated.correctAnswer);
   return { questionSessionId: session.id, expiresAt: session.expiresAt, presentation: generated.presentation, explanationKey: generated.explanationKey, skillKey: generated.skillKey, healthRemaining: attempt.healthRemaining };
 }
@@ -364,17 +367,15 @@ export async function recordBossAnswer(userId: number, input: { childId: string;
   if (!attempt || attempt.completedAt) throw new Error("learning.error.bossUnavailable");
   const result = await recordAnswer(userId, input);
   const definition = (await db.select().from(bossDefinitions).where(eq(bossDefinitions.worldKey, attempt.worldKey)).limit(1))[0];
-  const healthRemaining = result.isCorrect ? Math.max(0, attempt.healthRemaining - 34) : attempt.healthRemaining;
+  const healthRemaining = calculateBossHealth(attempt.healthRemaining, result.isCorrect);
   const completed = healthRemaining === 0;
   await db.update(bossAttempts).set({ healthRemaining, completedAt: completed ? new Date() : null }).where(eq(bossAttempts.id, attempt.id));
   let completionRewards = { xp: 0, coins: 0, unlockedWorldKey: null as string | null };
   if (completed && definition) {
     const latestChild = (await db.select().from(childProfiles).where(eq(childProfiles.id, child.id)).limit(1))[0]!;
-    const xp = latestChild.xp + definition.rewardXp;
-    const coins = latestChild.coins + definition.rewardCoins;
-    const level = Math.floor(xp / 100) + 1;
-    const worldIndex = starterWorlds.findIndex(world => world.key === attempt.worldKey);
-    const nextWorld = starterWorlds[worldIndex + 1];
+    const completion = calculateBossCompletion({ worldKey: attempt.worldKey, healthRemaining, rewardXp: definition.rewardXp, rewardCoins: definition.rewardCoins, currentXp: latestChild.xp, currentCoins: latestChild.coins });
+    const { xp, coins, level } = completion;
+    const nextWorld = completion.completionRewards.unlockedWorldKey ? starterWorlds.find(world => world.key === completion.completionRewards.unlockedWorldKey) : undefined;
     const writes: Promise<unknown>[] = [
       db.update(childProfiles).set({ xp, coins, level }).where(eq(childProfiles.id, child.id)),
       db.insert(rewardTransactions).values([{ id: randomUUID(), childId: child.id, kind: "xp", amount: definition.rewardXp, reasonKey: "rewards.bossComplete" }, { id: randomUUID(), childId: child.id, kind: "coins", amount: definition.rewardCoins, reasonKey: "rewards.bossComplete" }]),
@@ -382,7 +383,7 @@ export async function recordBossAnswer(userId: number, input: { childId: string;
     if (definition.badgeKey) writes.push(db.insert(childAchievements).values({ id: randomUUID(), childId: child.id, achievementKey: definition.badgeKey }).onDuplicateKeyUpdate({ set: { achievementKey: definition.badgeKey } }));
     if (nextWorld) writes.push(db.update(worldProgress).set({ isUnlocked: true }).where(and(eq(worldProgress.childId, child.id), eq(worldProgress.worldKey, nextWorld.key))));
     await Promise.all(writes);
-    completionRewards = { xp: definition.rewardXp, coins: definition.rewardCoins, unlockedWorldKey: nextWorld?.key ?? null };
+    completionRewards = completion.completionRewards;
   }
   return { ...result, boss: { healthRemaining, completed, completionRewards } };
 }
@@ -419,8 +420,9 @@ export async function recordAnswer(userId: number, input: { childId: string; que
   const attempts = (existing?.attempts ?? 0) + 1;
   const correctAnswers = (existing?.correctAnswers ?? 0) + (isCorrect ? 1 : 0);
   const mastery = masteryFrom(attempts, correctAnswers, input.responseTimeMs);
-  const recentCorrectRate = recentSkillAttempts.length ? recentSkillAttempts.filter(item => item.isCorrect).length / recentSkillAttempts.length : undefined;
-  const adaptive = recommendAdaptiveNext({ attempts, correctAnswers, mastery, responseTimeMs: input.responseTimeMs, usedHint: input.usedHint, recentCorrectRate });
+  const recentMetrics = recentPerformanceMetrics([...recentSkillAttempts.map(item => ({ isCorrect: item.isCorrect, responseTimeMs: item.responseTimeMs })), { isCorrect, responseTimeMs: input.responseTimeMs }]);
+  const adaptive = recommendAdaptiveNext({ attempts, correctAnswers, mastery, responseTimeMs: input.responseTimeMs, usedHint: input.usedHint, recentCorrectRate: recentMetrics.correctRate, recentAverageResponseTimeMs: recentMetrics.averageResponseTimeMs });
+  const recommendationSkillKey = selectAdaptiveSkill({ action: adaptive.action, answeredSkillKey: question.skillKey, availableSkills: starterSkills });
   const progressId = existing?.id ?? randomUUID();
   const nextStreak = calculateStreak(child.lastPracticeAt, child.streakDays, now);
   const xp = child.xp + rewards.xp;
@@ -454,7 +456,7 @@ export async function recordAnswer(userId: number, input: { childId: string; que
     db.insert(questionAttempts).values({ id: randomUUID(), childId: child.id, sessionId: question.id, skillKey: question.skillKey, submittedAnswer: input.answer, isCorrect, responseTimeMs: input.responseTimeMs, usedHint: input.usedHint }),
     db.update(childProfiles).set({ xp, coins, level, streakDays: nextStreak, lastPracticeAt: now }).where(eq(childProfiles.id, child.id)),
     db.insert(questProgress).values({ id: quest?.id ?? randomUUID(), childId: child.id, questKey: "daily-five", periodKey, progress: questValue, completedAt: questValue >= starterQuest.target ? now : null }).onDuplicateKeyUpdate({ set: { progress: questValue, completedAt: questValue >= starterQuest.target ? now : null } }),
-    db.insert(adaptiveRecommendations).values({ id: randomUUID(), childId: child.id, skillKey: question.skillKey, action: adaptive.action, difficulty: adaptive.difficulty, reasonKey: adaptive.reasonKey, priority: adaptive.priority }),
+    db.insert(adaptiveRecommendations).values({ id: randomUUID(), childId: child.id, skillKey: recommendationSkillKey, action: adaptive.action, difficulty: adaptive.difficulty, reasonKey: adaptive.reasonKey, priority: adaptive.priority }),
     db.insert(analyticsEvents).values({ id: randomUUID(), parentId: child.parentId, childId: child.id, eventKey: "answer_submitted", payload: { skillKey: question.skillKey, isCorrect, responseTimeMs: input.responseTimeMs, usedHint: input.usedHint } }),
     ...worldWrites,
   ];

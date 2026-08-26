@@ -1,4 +1,4 @@
-import { InteractionKind, skillByKey, starterQuestionTemplates, starterSkills } from "../shared/learningContent";
+import { InteractionKind, skillByKey, starterBossQuestionTemplates, starterQuestionTemplates } from "../shared/learningContent";
 
 export type QuestionPresentation = {
   kind: string;
@@ -15,10 +15,20 @@ export type QuestionPresentation = {
   matchTargets?: string[];
   visualOptions?: { key: string; value: number; label: string }[];
   timeLimitSeconds?: number;
+  bossTemplateKey?: string;
+  bossChallengeKey?: string;
+  bossOperator?: "+" | "−" | "×" | "÷";
+  activity?: "guidedPractice" | "skillPractice" | "review" | "challenge";
 };
 
 export type GeneratedQuestion = { presentation: QuestionPresentation; correctAnswer: string; explanationKey: string };
 export type AdaptiveDecision = { action: "practice" | "advance" | "review" | "remediate"; difficulty: number; reasonKey: string; priority: number };
+export type AdaptiveActivity = QuestionPresentation["activity"];
+const activityByAdaptiveAction: Record<AdaptiveDecision["action"], NonNullable<AdaptiveActivity>> = { remediate: "guidedPractice", practice: "skillPractice", review: "review", advance: "challenge" };
+
+export function activityForAdaptiveAction(action: AdaptiveDecision["action"]): NonNullable<AdaptiveActivity> {
+  return activityByAdaptiveAction[action];
+}
 
 function seededRandom(seed: string) {
   let value = 2166136261;
@@ -34,14 +44,19 @@ const numericChoices = (answer: number, max: number, random: () => number) => {
 };
 const interactionChoices = (interaction: InteractionKind, answer: number, max: number, random: () => number) => (["numeric", "timed"].includes(interaction) ? undefined : numericChoices(answer, max, random));
 const toVisualOptions = (choices: string[] | undefined) => choices?.map(choice => ({ key: choice, value: Math.max(1, Number(choice.split("/")[0]) || Number(choice) || 1), label: choice }));
+const interactionForActivity = (baseInteraction: InteractionKind, generatorKey: string, activity?: AdaptiveActivity): InteractionKind => {
+  if (activity === "guidedPractice") return ["count", "fraction", "geometry"].includes(generatorKey) ? "visual" : "choice";
+  if (activity === "challenge" && ["choice", "numeric"].includes(baseInteraction)) return "timed";
+  return baseInteraction;
+};
 
-export function generateQuestion(skillKey: string, difficulty: number, seed: string): GeneratedQuestion {
+export function generateQuestion(skillKey: string, difficulty: number, seed: string, activity?: AdaptiveActivity): GeneratedQuestion {
   const skill = skillByKey[skillKey];
   if (!skill) throw new Error("learning.error.unknownSkill");
   const template = starterQuestionTemplates.find(item => item.skillKey === skillKey && item.difficulty <= difficulty);
   if (!template) throw new Error("learning.error.templateUnavailable");
   const random = seededRandom(`${seed}:${template.key}:${difficulty}`);
-  const interaction = template.interaction;
+  const interaction = interactionForActivity(template.interaction, skill.generatorKey, activity);
   const max = difficulty >= 4 ? 100 : difficulty >= 2 ? 20 : 10;
   const timed = interaction === "timed" ? { timeLimitSeconds: difficulty >= 3 ? 25 : 40 } : {};
   const make = (kind: string, answer: number, explanationKey: string, left?: number, right?: number, visual?: QuestionPresentation["visual"]): GeneratedQuestion => {
@@ -63,20 +78,57 @@ export function generateQuestion(skillKey: string, difficulty: number, seed: str
 }
 
 export function generateBossQuestion(worldKey: string, difficulty: number, seed: string): GeneratedQuestion & { skillKey: string } {
-  const skills = starterSkills.filter(skill => skill.worldKey === worldKey);
-  if (!skills.length) throw new Error("learning.error.unknownWorld");
+  const templates = starterBossQuestionTemplates.filter(template => template.worldKey === worldKey);
+  if (!templates.length) throw new Error("learning.error.unknownWorld");
   const random = seededRandom(`${seed}:${worldKey}:boss`);
-  const skill = skills[randomInt(0, skills.length - 1, random)]!;
-  const generated = generateQuestion(skill.key, Math.min(5, Math.max(2, difficulty)), `${seed}:${skill.key}`);
-  return { ...generated, skillKey: skill.key, presentation: { ...generated.presentation, interaction: "boss", promptKey: "questions.boss" } };
+  const template = templates[randomInt(0, templates.length - 1, random)]!;
+  const scaledDifficulty = Math.min(5, Math.max(2, difficulty));
+  const max = scaledDifficulty >= 4 ? 50 : 20;
+  const boss = (presentation: Omit<QuestionPresentation, "interaction" | "promptKey">, correctAnswer: string, explanationKey: string) => ({
+    skillKey: template.skillKey,
+    correctAnswer,
+    explanationKey,
+    presentation: { ...presentation, interaction: "boss" as InteractionKind, promptKey: "questions.boss", bossTemplateKey: template.key, bossChallengeKey: template.challengeKey, bossOperator: template.operator },
+  });
+  if (template.kind === "count") {
+    const amount = randomInt(4, max, random);
+    return boss({ kind: "count", amount, choices: numericChoices(amount, max, random) }, String(amount), "feedback.countExplanation");
+  }
+  if (template.kind === "compare") {
+    const left = randomInt(2, max, random); let right = randomInt(1, max, random); if (left === right) right = Math.max(1, right - 1);
+    return boss({ kind: "compare", left, right, choices: ["<", ">", "="] }, left > right ? ">" : "<", "feedback.compareExplanation");
+  }
+  if (template.kind === "addition" || template.kind === "subtraction") {
+    const left = randomInt(template.kind === "subtraction" ? 6 : 2, max, random);
+    const right = randomInt(1, Math.max(1, template.kind === "subtraction" ? left - 1 : max - left), random);
+    const answer = template.kind === "subtraction" ? left - right : left + right;
+    return boss({ kind: template.kind, left, right, choices: template.interaction === "numeric" ? undefined : numericChoices(answer, max + 10, random) }, String(answer), template.kind === "addition" ? "feedback.additionExplanation" : "feedback.subtractionExplanation");
+  }
+  if (template.kind === "multiplication" || template.kind === "division") {
+    const factor = randomInt(2, scaledDifficulty >= 4 ? 10 : 6, random); const other = randomInt(2, scaledDifficulty >= 4 ? 10 : 6, random);
+    const left = template.kind === "division" ? factor * other : factor; const right = template.kind === "division" ? factor : other; const answer = template.kind === "division" ? other : factor * other;
+    return boss({ kind: template.kind, left, right, choices: template.interaction === "numeric" ? undefined : numericChoices(answer, Math.max(30, answer + 8), random), visual: { groups: factor, each: other } }, String(answer), template.kind === "division" ? "feedback.divisionExplanation" : "feedback.multiplicationExplanation");
+  }
+  if (template.kind === "fraction") {
+    const denominator = template.challengeKey === "compareFraction" ? 4 : [2, 3, 4][randomInt(0, 2, random)]; const numerator = randomInt(1, denominator - 1, random); const answer = `${numerator}/${denominator}`;
+    const choices = shuffle([answer, `1/${denominator}`, `${Math.min(denominator - 1, numerator + 1)}/${denominator}`, `${numerator}/${denominator + 1}`], random);
+    return boss({ kind: "fraction", choices, visual: { numerator, denominator } }, answer, "feedback.fractionExplanation");
+  }
+  if (template.kind === "geometry") {
+    const left = randomInt(2, 9, random); const right = randomInt(2, 9, random); const answer = template.challengeKey === "perimeter" ? 2 * (left + right) : left * right;
+    return boss({ kind: template.challengeKey === "perimeter" ? "perimeter" : "area", left, right, choices: template.interaction === "numeric" ? undefined : numericChoices(answer, 40, random), visual: { shape: "rectangle" } }, String(answer), "feedback.geometryExplanation");
+  }
+  const isTrue = random() > .35;
+  return boss({ kind: "logic", choices: ["true", "false"], visual: { shape: isTrue ? "pattern" : "broken-pattern" } }, isTrue ? "true" : "false", "feedback.logicExplanation");
 }
 
-export function recommendAdaptiveNext(input: { attempts: number; correctAnswers: number; mastery: number; responseTimeMs: number; usedHint: boolean; recentCorrectRate?: number }): AdaptiveDecision {
+export function recommendAdaptiveNext(input: { attempts: number; correctAnswers: number; mastery: number; responseTimeMs: number; usedHint: boolean; recentCorrectRate?: number; recentAverageResponseTimeMs?: number }): AdaptiveDecision {
   const accuracy = input.attempts ? input.correctAnswers / input.attempts : 0;
   const recent = input.recentCorrectRate ?? accuracy;
+  const pace = input.recentAverageResponseTimeMs ?? input.responseTimeMs;
   if (input.usedHint || accuracy < .5 || recent < .45) return { action: "remediate", difficulty: 1, reasonKey: "recommendations.remediate", priority: 4 };
   if (accuracy < .7 || input.mastery < 55) return { action: "practice", difficulty: Math.max(1, input.mastery >= 35 ? 2 : 1), reasonKey: "recommendations.practiceSkill", priority: 3 };
-  if (accuracy >= .9 && recent >= .85 && input.responseTimeMs <= 9000 && input.mastery >= 80) return { action: "advance", difficulty: Math.min(5, 2 + Math.floor(input.mastery / 25)), reasonKey: "recommendations.advance", priority: 2 };
+  if (accuracy >= .9 && recent >= .85 && pace <= 9000 && input.mastery >= 80) return { action: "advance", difficulty: Math.min(5, 2 + Math.floor(input.mastery / 25)), reasonKey: "recommendations.advance", priority: 2 };
   return { action: "review", difficulty: Math.min(4, Math.max(1, Math.ceil(input.mastery / 25))), reasonKey: "recommendations.review", priority: 2 };
 }
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { starterBossQuestionTemplates, starterWorlds } from "../shared/learningContent";
 import { generateBossQuestion, generateQuestion, masteryFrom, recommendAdaptiveNext, rewardForAttempt } from "./learningEngine";
 
 describe("learningEngine", () => {
@@ -36,6 +37,11 @@ describe("learningEngine", () => {
     expect(generateQuestion("logical-reasoning", 2, "math-4").presentation.interaction).toBe("trueFalse");
   });
 
+  it("changes the generated interaction when the server chooses a guided or challenge activity", () => {
+    expect(generateQuestion("count-to-20", 1, "guided-count", "guidedPractice").presentation.interaction).toBe("visual");
+    expect(generateQuestion("count-to-20", 2, "challenge-count", "challenge").presentation.interaction).toBe("timed");
+  });
+
   it("creates a structured, canonical pair-matching question", () => {
     const question = generateQuestion("equivalent-fractions", 2, "match-1");
     expect(question.presentation.interaction).toBe("matching");
@@ -70,5 +76,16 @@ describe("learningEngine", () => {
     expect(first).toEqual(second);
     expect(first.presentation.interaction).toBe("boss");
     expect(first.skillKey).toMatch(/repeated-addition|multiplication-concepts|times-tables|mental-multiplication|multiplication-word-problems/);
+  });
+
+  it("uses an authored boss template for every world instead of a normal question template", () => {
+    expect(new Set(starterBossQuestionTemplates.map(template => template.worldKey))).toEqual(new Set(starterWorlds.map(world => world.key)));
+    for (const world of starterWorlds) {
+      const question = generateBossQuestion(world.key, 3, `boss-template-${world.key}`);
+      const template = starterBossQuestionTemplates.find(item => item.key === question.presentation.bossTemplateKey);
+      expect(template).toBeDefined();
+      expect(template).toMatchObject({ worldKey: world.key, skillKey: question.skillKey });
+      expect(question.presentation.bossChallengeKey).toBe(template?.challengeKey);
+    }
   });
 });

@@ -83,9 +83,10 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const adaptive = await getAdaptiveNextQuestion(ctx.user.id, { childId: input.childId, requestedSkillKey: input.skillKey });
         const sessionId = randomUUID();
-        const generated = generateQuestion(adaptive.skillKey, adaptive.difficulty, sessionId);
-        const session = await createQuestionSession(ctx.user.id, input.childId, adaptive.skillKey, generated.presentation, generated.correctAnswer, sessionId);
-        return { questionSessionId: session.id, expiresAt: session.expiresAt, presentation: generated.presentation, explanationKey: generated.explanationKey, adaptive };
+        const generated = generateQuestion(adaptive.skillKey, adaptive.difficulty, sessionId, adaptive.activity);
+        const presentation = { ...generated.presentation, activity: adaptive.activity };
+        const session = await createQuestionSession(ctx.user.id, input.childId, adaptive.skillKey, presentation, generated.correctAnswer, sessionId);
+        return { questionSessionId: session.id, expiresAt: session.expiresAt, presentation, explanationKey: generated.explanationKey, adaptive };
       }),
     startSession: protectedProcedure.input(childIdInput.extend({ skillKey: z.string().min(1).max(64), mode: z.enum(["lesson", "battle"]) }))
       .mutation(({ ctx, input }) => createLearningSession(ctx.user.id, input)),

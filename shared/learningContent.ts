@@ -3,6 +3,7 @@ export type GeneratorKey = "count" | "compare" | "sequence" | "addition" | "subt
 export type InteractionKind = "choice" | "numeric" | "trueFalse" | "ordering" | "matching" | "visual" | "timed" | "boss";
 export type SkillDefinition = { key: string; worldKey: string; order: number; nameKey: string; generatorKey: GeneratorKey };
 export type QuestionTemplateDefinition = { key: string; skillKey: string; kind: GeneratorKey; difficulty: number; interaction: InteractionKind };
+export type BossTemplateDefinition = { key: string; worldKey: string; skillKey: string; kind: GeneratorKey; interaction: "choice" | "numeric" | "trueFalse"; challengeKey: string; operator?: "+" | "−" | "×" | "÷" };
 
 export const starterWorlds: WorldDefinition[] = [
   { key: "number-valley", order: 1, nameKey: "worlds.numberValley.name", descriptionKey: "worlds.numberValley.description", accent: "sky", iconKey: "stars" },
@@ -38,6 +39,24 @@ const interactionFor = (key: string): InteractionKind => {
   return "choice";
 };
 export const starterQuestionTemplates: QuestionTemplateDefinition[] = starterSkills.map(skill => ({ key: `template-${skill.key}`, skillKey: skill.key, kind: skill.generatorKey, difficulty: 1, interaction: interactionFor(skill.key) }));
+export const starterBossQuestionTemplates: BossTemplateDefinition[] = [
+  { key: "boss-number-count", worldKey: "number-valley", skillKey: "count-to-20", kind: "count", interaction: "choice", challengeKey: "count" },
+  { key: "boss-number-compare", worldKey: "number-valley", skillKey: "greater-less", kind: "compare", interaction: "choice", challengeKey: "compare" },
+  { key: "boss-add-sum", worldKey: "addition-forest", skillKey: "add-within-20", kind: "addition", interaction: "choice", challengeKey: "sum", operator: "+" },
+  { key: "boss-add-ten", worldKey: "addition-forest", skillKey: "make-ten", kind: "addition", interaction: "numeric", challengeKey: "makeTen", operator: "+" },
+  { key: "boss-subtract-difference", worldKey: "subtraction-desert", skillKey: "subtract-within-20", kind: "subtraction", interaction: "choice", challengeKey: "difference", operator: "−" },
+  { key: "boss-subtract-mental", worldKey: "subtraction-desert", skillKey: "mental-subtraction", kind: "subtraction", interaction: "numeric", challengeKey: "mentalDifference", operator: "−" },
+  { key: "boss-multiply-groups", worldKey: "multiplication-mountains", skillKey: "multiplication-concepts", kind: "multiplication", interaction: "choice", challengeKey: "groups", operator: "×" },
+  { key: "boss-multiply-table", worldKey: "multiplication-mountains", skillKey: "times-tables", kind: "multiplication", interaction: "choice", challengeKey: "table", operator: "×" },
+  { key: "boss-divide-share", worldKey: "division-kingdom", skillKey: "equal-groups", kind: "division", interaction: "choice", challengeKey: "share", operator: "÷" },
+  { key: "boss-divide-quotient", worldKey: "division-kingdom", skillKey: "basic-division", kind: "division", interaction: "numeric", challengeKey: "quotient", operator: "÷" },
+  { key: "boss-fraction-part", worldKey: "fraction-islands", skillKey: "fraction-concepts", kind: "fraction", interaction: "choice", challengeKey: "part" },
+  { key: "boss-fraction-compare", worldKey: "fraction-islands", skillKey: "compare-fractions", kind: "fraction", interaction: "choice", challengeKey: "compareFraction" },
+  { key: "boss-geometry-area", worldKey: "geometry-city", skillKey: "area", kind: "geometry", interaction: "numeric", challengeKey: "area", operator: "×" },
+  { key: "boss-geometry-perimeter", worldKey: "geometry-city", skillKey: "perimeter", kind: "geometry", interaction: "choice", challengeKey: "perimeter", operator: "+" },
+  { key: "boss-logic-pattern", worldKey: "logic-castle", skillKey: "patterns", kind: "logic", interaction: "trueFalse", challengeKey: "pattern" },
+  { key: "boss-logic-reason", worldKey: "logic-castle", skillKey: "logical-reasoning", kind: "logic", interaction: "trueFalse", challengeKey: "reason" },
+];
 
 export const starterAchievements = [
   { key: "first-spark", titleKey: "achievements.firstSpark.title", descriptionKey: "achievements.firstSpark.description", iconKey: "sparkles" },

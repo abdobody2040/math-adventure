@@ -1,0 +1,14 @@
+import { describe, expect, it } from "vitest";
+import { resolveAdaptiveQuestionTarget } from "./nextQuestionTarget";
+
+const skills = [{ key: "count-to-20" }, { key: "number-recognition" }, { key: "compare-numbers" }];
+
+describe("next adaptive question target", () => {
+  it("overrides a requested skill when remediation targets a weak skill", () => {
+    expect(resolveAdaptiveQuestionTarget({ unlockedSkills: skills, masteryBySkill: new Map([["count-to-20", 80], ["number-recognition", 20]]), requestedSkillKey: "count-to-20", recommendation: { skillKey: "number-recognition", action: "remediate", difficulty: 1 } })).toEqual({ skillKey: "number-recognition", difficulty: 1, action: "remediate" });
+  });
+
+  it("overrides a requested skill and keeps the server-selected difficulty for advancement", () => {
+    expect(resolveAdaptiveQuestionTarget({ unlockedSkills: skills, masteryBySkill: new Map(), requestedSkillKey: "count-to-20", recommendation: { skillKey: "compare-numbers", action: "advance", difficulty: 5 } })).toEqual({ skillKey: "compare-numbers", difficulty: 5, action: "advance" });
+  });
+});
