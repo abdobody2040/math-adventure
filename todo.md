@@ -48,6 +48,7 @@
 - [ ] Add avatar cosmetics, inventory, healthy pets, daily and weekly quest variety, and cosmetic reward redemption.
 - [ ] Expand parent controls for multiple children, child deletion, privacy preferences, export requests, weekly reports, and notification settings.
 - [ ] Convert the administrator view into secured CRUD management for curriculum, questions, rewards, quests, and difficulty settings.
+- [ ] Add visible success and error states for each protected admin authoring form and cover successful admin read/save routing.
 - [ ] Add privacy-conscious product analytics, event tracking, and administrator analytics summaries.
 - [ ] Add subscription plans, entitlement checks, and secure payment integration after payment-provider setup is available.
 - [ ] Add the constrained premium AI tutor with guided hints and practice support after the AI integration is configured.

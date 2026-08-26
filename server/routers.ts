@@ -12,6 +12,7 @@ import {
   createQuestionSession,
   adminSaveQuestionTemplate,
   adminSaveQuest,
+  adminSaveReward,
   adminSaveSkill,
   adminSaveWorld,
   completeLearningSession,
@@ -21,6 +22,7 @@ import {
   getWeeklyReport,
   getAdaptiveNextQuestion,
   getAdminAnalyticsSummary,
+  getAdminContent,
   getCurriculum,
   listChildren,
   recordAnswer,
@@ -118,10 +120,12 @@ export const appRouter = router({
   admin: router({
     seedStarterContent: adminProcedure.mutation(() => seedStarterContent()),
     analytics: adminProcedure.query(() => getAdminAnalyticsSummary()),
+    content: adminProcedure.query(() => getAdminContent()),
     saveWorld: adminProcedure.input(z.object({ key: z.string().min(1).max(64), order: z.number().int().min(1), nameKey: z.string().min(1).max(128), descriptionKey: z.string().min(1).max(128), accent: z.string().min(1).max(32), iconKey: z.string().min(1).max(64), isPublished: z.boolean() })).mutation(({ input }) => adminSaveWorld(input)),
     saveSkill: adminProcedure.input(z.object({ key: z.string().min(1).max(64), worldKey: z.string().min(1).max(64), order: z.number().int().min(1), nameKey: z.string().min(1).max(128), generatorKey: z.string().min(1).max(64), isPublished: z.boolean() })).mutation(({ input }) => adminSaveSkill(input)),
     saveQuestionTemplate: adminProcedure.input(z.object({ key: z.string().min(1).max(64), skillKey: z.string().min(1).max(64), kind: z.string().min(1).max(64), difficulty: z.number().int().min(1).max(5), isEnabled: z.boolean() })).mutation(({ input }) => adminSaveQuestionTemplate(input)),
-    saveQuest: adminProcedure.input(z.object({ key: z.string().min(1).max(64), titleKey: z.string().min(1).max(128), target: z.number().int().min(1), rewardXp: z.number().int().min(0), rewardCoins: z.number().int().min(0), isDaily: z.boolean() })).mutation(({ input }) => adminSaveQuest(input)),
+    saveQuest: adminProcedure.input(z.object({ key: z.string().min(1).max(64), titleKey: z.string().min(1).max(128), target: z.number().int().min(1), rewardXp: z.number().int().min(0), rewardCoins: z.number().int().min(0), isDaily: z.boolean(), isEnabled: z.boolean() })).mutation(({ input }) => adminSaveQuest(input)),
+    saveReward: adminProcedure.input(z.object({ key: z.string().min(1).max(64), titleKey: z.string().min(1).max(128), category: z.enum(["outfit", "accessory", "backpack", "effect", "pet"]), costCoins: z.number().int().min(0), assetKey: z.string().min(1).max(64), isPublished: z.boolean() })).mutation(({ input }) => adminSaveReward(input)),
   }),
 });
 

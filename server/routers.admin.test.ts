@@ -26,4 +26,16 @@ describe("admin content access", () => {
 
     await expect(caller.admin.seedStarterContent()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
+
+  it("rejects a non-admin caller before reading authoring content", async () => {
+    const caller = appRouter.createCaller(createUserContext("user"));
+
+    await expect(caller.admin.content()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rejects a non-admin caller before changing a reward", async () => {
+    const caller = appRouter.createCaller(createUserContext("user"));
+
+    await expect(caller.admin.saveReward({ key: "reward-test", titleKey: "inventory.rewardTest", category: "effect", costCoins: 0, assetKey: "reward-test", isPublished: false })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 });

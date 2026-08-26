@@ -183,6 +183,7 @@ export const quests = mysqlTable("quests", {
   rewardXp: int("rewardXp").notNull(),
   rewardCoins: int("rewardCoins").notNull(),
   isDaily: boolean("isDaily").default(true).notNull(),
+  isEnabled: boolean("isEnabled").default(true).notNull(),
 });
 
 export const questProgress = mysqlTable(

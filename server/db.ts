@@ -201,6 +201,19 @@ export async function getAdminAnalyticsSummary() {
   return { activeChildren: children.length, attempts: attempts.length, accuracy: attempts.length ? Math.round(correct / attempts.length * 100) : 0, trackedEvents: events.length, publishedWorlds: worldsCount.length, publishedSkills: skillsCount.length };
 }
 
+export async function getAdminContent() {
+  const db = await requireDb();
+  await seedStarterContent();
+  const [worldRows, skillRows, templateRows, questRows, rewardRows] = await Promise.all([
+    db.select().from(worlds).orderBy(worlds.order),
+    db.select().from(skills).orderBy(skills.worldKey, skills.order),
+    db.select().from(questionTemplates).orderBy(questionTemplates.skillKey, questionTemplates.difficulty),
+    db.select().from(quests).orderBy(quests.isDaily, quests.key),
+    db.select().from(inventoryItems).orderBy(inventoryItems.category, inventoryItems.key),
+  ]);
+  return { worlds: worldRows, skills: skillRows, questionTemplates: templateRows, quests: questRows, rewards: rewardRows };
+}
+
 export async function adminSaveWorld(input: { key: string; order: number; nameKey: string; descriptionKey: string; accent: string; iconKey: string; isPublished: boolean }) {
   const db = await requireDb();
   await db.insert(worlds).values(input).onDuplicateKeyUpdate({ set: { order: input.order, nameKey: input.nameKey, descriptionKey: input.descriptionKey, accent: input.accent, iconKey: input.iconKey, isPublished: input.isPublished } });
@@ -221,9 +234,15 @@ export async function adminSaveQuestionTemplate(input: { key: string; skillKey: 
   return { success: true } as const;
 }
 
-export async function adminSaveQuest(input: { key: string; titleKey: string; target: number; rewardXp: number; rewardCoins: number; isDaily: boolean }) {
+export async function adminSaveQuest(input: { key: string; titleKey: string; target: number; rewardXp: number; rewardCoins: number; isDaily: boolean; isEnabled: boolean }) {
   const db = await requireDb();
-  await db.insert(quests).values(input).onDuplicateKeyUpdate({ set: { titleKey: input.titleKey, target: input.target, rewardXp: input.rewardXp, rewardCoins: input.rewardCoins, isDaily: input.isDaily } });
+  await db.insert(quests).values(input).onDuplicateKeyUpdate({ set: { titleKey: input.titleKey, target: input.target, rewardXp: input.rewardXp, rewardCoins: input.rewardCoins, isDaily: input.isDaily, isEnabled: input.isEnabled } });
+  return { success: true } as const;
+}
+
+export async function adminSaveReward(input: { key: string; titleKey: string; category: "outfit" | "accessory" | "backpack" | "effect" | "pet"; costCoins: number; assetKey: string; isPublished: boolean }) {
+  const db = await requireDb();
+  await db.insert(inventoryItems).values(input).onDuplicateKeyUpdate({ set: { titleKey: input.titleKey, category: input.category, costCoins: input.costCoins, assetKey: input.assetKey, isPublished: input.isPublished } });
   return { success: true } as const;
 }
 

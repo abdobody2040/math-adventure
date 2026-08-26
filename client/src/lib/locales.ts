@@ -40,6 +40,9 @@ Object.assign((en as Dictionary).boss as Dictionary, { challenges: { count: "Cou
 Object.assign(en.rewards as Dictionary, { collection: "Your collection", companions: "Kind companions", unlocked: "Unlocked", bossComplete: "World guardian complete" });
 Object.assign(en.parent as Dictionary, { weeklyReport: "Weekly learning picture", weeklyReminder: "Send a gentle weekly report", exportData: "Export this child’s data" });
 Object.assign(en.admin as Dictionary, { analytics: "Privacy-safe analytics", productHealth: "Product health", children: "Children" });
+Object.assign(en.admin as Dictionary, { contentStudio: "Content studio", worldEditor: "World editor", skillEditor: "Skill editor", templateEditor: "Question template", questEditor: "Quest editor", selectWorld: "Load a world", selectSkill: "Load a skill", selectTemplate: "Load a template", selectQuest: "Load a quest", key: "Key", order: "Order", nameKey: "Name translation key", descriptionKey: "Description translation key", generator: "Generator", kind: "Question kind", difficulty: "Difficulty", target: "Target", rewardXp: "XP reward", rewardCoins: "Coin reward", daily: "Daily quest", published: "Published", enabled: "Enabled", saveWorld: "Save world", saveSkill: "Save skill", saveTemplate: "Save template", saveQuest: "Save quest", manageDetail: "Create or revise curriculum records. Unpublish content instead of deleting learning history." });
+Object.assign(en.admin as Dictionary, { rewardEditor: "Reward editor", selectReward: "Load a reward", category: "Category", cost: "Coin cost", assetKey: "Asset key", saveReward: "Save reward" });
+Object.assign(en.admin as Dictionary, { changesSaved: "Saved safely", saveError: "Could not save this record. Please try again.", emptyContent: "No authoring records are available yet." });
 
 const ar: Dictionary = {
   brand: { name: "مغامرة الرياضيات", tagline: "تعلّم. استكشف. تقدّم." },
@@ -81,6 +84,9 @@ Object.assign(en.parent as Dictionary, { learningReminder: "Enable gentle learni
 Object.assign(ar.parent as Dictionary, { deleteChild: "إزالة ملف الطفل", deleteConfirm: "هل تريد إزالة ملف هذا الطفل؟ لن تظهر بيانات تعلمه في لوحة المتابعة بعد الآن." });
 Object.assign(ar.parent as Dictionary, { learningReminder: "فعّل تذكيرات تعلم لطيفة", allowDataExport: "اسمح بتصدير بيانات هذا الطفل" });
 Object.assign(ar.admin as Dictionary, { analytics: "تحليلات تراعي الخصوصية", productHealth: "صحة المنتج", children: "الأطفال" });
+Object.assign(ar.admin as Dictionary, { contentStudio: "استديو المحتوى", worldEditor: "محرر العالم", skillEditor: "محرر المهارة", templateEditor: "قالب السؤال", questEditor: "مهمة", selectWorld: "حمّل عالماً", selectSkill: "حمّل مهارة", selectTemplate: "حمّل قالباً", selectQuest: "حمّل مهمة", key: "المعرّف", order: "الترتيب", nameKey: "مفتاح ترجمة الاسم", descriptionKey: "مفتاح ترجمة الوصف", generator: "المولّد", kind: "نوع السؤال", difficulty: "الصعوبة", target: "الهدف", rewardXp: "مكافأة الخبرة", rewardCoins: "مكافأة العملات", daily: "مهمة يومية", published: "منشور", enabled: "مفعّل", saveWorld: "حفظ العالم", saveSkill: "حفظ المهارة", saveTemplate: "حفظ القالب", saveQuest: "حفظ المهمة", manageDetail: "أنشئ أو حدّث سجلات المنهج. ألغِ نشر المحتوى بدلاً من حذف سجل التعلم." });
+Object.assign(ar.admin as Dictionary, { rewardEditor: "محرر المكافآت", selectReward: "حمّل مكافأة", category: "الفئة", cost: "تكلفة العملات", assetKey: "معرّف الأصل", saveReward: "حفظ المكافأة" });
+Object.assign(ar.admin as Dictionary, { changesSaved: "تم الحفظ بأمان", saveError: "تعذّر حفظ هذا السجل. حاول مرة أخرى.", emptyContent: "لا توجد سجلات محتوى متاحة بعد." });
 
 const dictionaries: Record<Locale, Dictionary> = { en, ar };
 

@@ -1,0 +1,1 @@
+ALTER TABLE `quests` ADD `isEnabled` boolean DEFAULT true NOT NULL;
