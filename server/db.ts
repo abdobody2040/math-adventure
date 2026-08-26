@@ -40,6 +40,7 @@ import { assertChildDataExportAllowed } from "./parentPrivacy";
 import { calculateBossCompletion, calculateBossHealth, createBossQuestionDraft } from "./bossFlow";
 import { recentPerformanceMetrics, selectAdaptiveSkill } from "./adaptiveSelection";
 import { applyPersistedPerformanceGuard, resolveAdaptiveQuestionTarget } from "./nextQuestionTarget";
+import { buildAggregateAnalytics, safeAnalyticsPayload } from "./privacyAnalytics";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let curriculumCache: { expiresAt: number; value: any } | null = null;
@@ -197,8 +198,7 @@ export async function getAdminAnalyticsSummary() {
     db.select({ key: worlds.key }).from(worlds).where(eq(worlds.isPublished, true)),
     db.select({ key: skills.key }).from(skills).where(eq(skills.isPublished, true)),
   ]);
-  const correct = attempts.filter(item => item.isCorrect).length;
-  return { activeChildren: children.length, attempts: attempts.length, accuracy: attempts.length ? Math.round(correct / attempts.length * 100) : 0, trackedEvents: events.length, publishedWorlds: worldsCount.length, publishedSkills: skillsCount.length };
+  return buildAggregateAnalytics({ activeChildren: children.length, attempts, events, publishedWorlds: worldsCount.length, publishedSkills: skillsCount.length });
 }
 
 export async function getAdminContent() {
@@ -325,6 +325,7 @@ export async function redeemInventoryItem(userId: number, input: { childId: stri
   await Promise.all([
     db.insert(childInventory).values({ id: randomUUID(), childId: child.id, itemKey: item.key }).onDuplicateKeyUpdate({ set: { itemKey: item.key } }),
     db.update(childProfiles).set({ coins: child.coins - item.costCoins }).where(eq(childProfiles.id, child.id)),
+    db.insert(analyticsEvents).values({ id: randomUUID(), parentId: child.parentId, childId: child.id, eventKey: "reward_redeemed", payload: safeAnalyticsPayload("reward_redeemed", { itemKey: item.key }) }),
   ]);
   return { success: true, coins: child.coins - item.costCoins } as const;
 }
@@ -338,15 +339,19 @@ export async function unlockPet(userId: number, input: { childId: string; petKey
   await Promise.all([
     db.insert(childPets).values({ id: randomUUID(), childId: child.id, petKey: pet.key }).onDuplicateKeyUpdate({ set: { petKey: pet.key } }),
     db.update(childProfiles).set({ coins: child.coins - pet.unlockCoins }).where(eq(childProfiles.id, child.id)),
+    db.insert(analyticsEvents).values({ id: randomUUID(), parentId: child.parentId, childId: child.id, eventKey: "pet_unlocked", payload: safeAnalyticsPayload("pet_unlocked", { petKey: pet.key }) }),
   ]);
   return { success: true, coins: child.coins - pet.unlockCoins } as const;
 }
 
 export async function createLearningSession(userId: number, input: { childId: string; skillKey: string; mode: "lesson" | "battle" }) {
   const db = await requireDb();
-  await assertOwnedChild(userId, input.childId);
+  const child = await assertOwnedChild(userId, input.childId);
   const session = { id: randomUUID(), ...input };
-  await db.insert(learningSessions).values(session);
+  await Promise.all([
+    db.insert(learningSessions).values(session),
+    db.insert(analyticsEvents).values({ id: randomUUID(), parentId: child.parentId, childId: child.id, eventKey: "session_started", payload: safeAnalyticsPayload("session_started", { skillKey: input.skillKey, mode: input.mode }) }),
+  ]);
   return session;
 }
 
@@ -381,7 +386,10 @@ export async function startBossAttempt(userId: number, input: { childId: string;
   ]);
   if (!progress[0] || !definition[0]) throw new Error("learning.error.bossLocked");
   const attempt = { id: randomUUID(), childId: child.id, worldKey: input.worldKey, healthRemaining: definition[0].health };
-  await db.insert(bossAttempts).values(attempt);
+  await Promise.all([
+    db.insert(bossAttempts).values(attempt),
+    db.insert(analyticsEvents).values({ id: randomUUID(), parentId: child.parentId, childId: child.id, eventKey: "boss_started", payload: safeAnalyticsPayload("boss_started", { worldKey: input.worldKey }) }),
+  ]);
   return { ...attempt, health: definition[0].health, titleKey: definition[0].titleKey };
 }
 
@@ -505,7 +513,7 @@ export async function recordAnswer(userId: number, input: { childId: string; que
     db.insert(questProgress).values({ id: weeklyProgress?.id ?? randomUUID(), childId: child.id, questKey: weeklyQuest.key, periodKey: currentWeekKey, progress: weeklyValue, completedAt: weeklyValue >= weeklyQuest.target ? now : null }).onDuplicateKeyUpdate({ set: { progress: weeklyValue, completedAt: weeklyValue >= weeklyQuest.target ? now : null } }),
     db.insert(adaptiveRecommendations).values({ id: randomUUID(), childId: child.id, skillKey: recommendationSkillKey, action: adaptive.action, difficulty: adaptive.difficulty, reasonKey: adaptive.reasonKey, priority: adaptive.priority }),
     db.insert(adaptivePerformanceSnapshots).values({ id: randomUUID(), childId: child.id, skillKey: question.skillKey, windowSize: recentSkillAttempts.length + 1, correctRateBps: Math.round((recentMetrics.correctRate ?? 0) * 10000), averageResponseTimeMs: recentMetrics.averageResponseTimeMs ?? input.responseTimeMs, usedHint: input.usedHint }),
-    db.insert(analyticsEvents).values({ id: randomUUID(), parentId: child.parentId, childId: child.id, eventKey: "answer_submitted", payload: { skillKey: question.skillKey, isCorrect, responseTimeMs: input.responseTimeMs, usedHint: input.usedHint } }),
+    db.insert(analyticsEvents).values({ id: randomUUID(), parentId: child.parentId, childId: child.id, eventKey: "answer_submitted", payload: safeAnalyticsPayload("answer_submitted", { skillKey: question.skillKey, isCorrect, responseTimeMs: input.responseTimeMs, usedHint: input.usedHint }) }),
     ...worldWrites,
   ];
   if (rewards.xp || rewards.coins) writes.push(db.insert(rewardTransactions).values([
