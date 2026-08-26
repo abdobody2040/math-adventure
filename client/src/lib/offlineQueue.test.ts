@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { enqueueAnswer, readQueuedAnswers, removeQueuedAnswers } from "./offlineQueue";
+import { enqueueAnswer, readQueuedAnswers, removeQueuedAnswers, summarizeOfflineSync } from "./offlineQueue";
 
 const memory = new Map<string, string>();
 
@@ -17,5 +17,13 @@ describe("offline answer queue", () => {
     expect(readQueuedAnswers(childId)).toHaveLength(2);
     removeQueuedAnswers(childId, [first.idempotencyKey]);
     expect(readQueuedAnswers(childId)).toEqual([second]);
+  });
+
+  it("summarizes accepted, duplicate, and rejected reconnect operations", () => {
+    expect(summarizeOfflineSync([
+      { idempotencyKey: "a", status: "processed" },
+      { idempotencyKey: "b", status: "duplicate" },
+      { idempotencyKey: "c", status: "rejected" },
+    ])).toEqual({ processed: 1, duplicates: 1, rejected: 1 });
   });
 });

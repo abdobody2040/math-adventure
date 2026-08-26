@@ -21,7 +21,7 @@ const en: Dictionary = {
   quests: { dailyFive: "Five bright answers" },
   recommendations: { practiceSkill: "A gentle practice session will help your next skill grow.", startAdventure: "Start with a little Number Valley exploration." },
   rewards: { correctAnswer: "Correct answer", braveTry: "Brave try" },
-  offline: { online: "Adventure synced", offline: "Offline mode", offlineDetail: "Your saved app shell and learning guide are ready. Connect to save new progress." },
+  offline: { online: "Adventure synced", offline: "Offline mode", offlineDetail: "Your saved app shell and learning guide are ready. Connect to save new progress.", syncSaved: "Saved answers synced.", syncRejected: "Some saved answers need a fresh question before they can be sent." },
   pwa: { install: "Install app", installed: "App installed" },
   admin: { seed: "Load starter content", title: "Content studio", description: "Admin-only controls for the published starter curriculum.", curriculum: "Starter curriculum", worlds: "Worlds", skills: "Skills", lessons: "Lessons", saved: "Starter content is ready." },
 };
@@ -61,7 +61,7 @@ const ar: Dictionary = {
   quests: { dailyFive: "خمس إجابات مشرقة" },
   recommendations: { practiceSkill: "تدريب قصير ولطيف سيساعد مهارتك التالية على النمو.", startAdventure: "ابدأ قليلًا من الاستكشاف في وادي الأعداد." },
   rewards: { correctAnswer: "إجابة صحيحة", braveTry: "محاولة شجاعة" },
-  offline: { online: "المغامرة متزامنة", offline: "وضع عدم الاتصال", offlineDetail: "واجهة التطبيق ودليل التعلم المحفوظان جاهزان. اتصل بالإنترنت لحفظ التقدم الجديد." },
+  offline: { online: "المغامرة متزامنة", offline: "وضع عدم الاتصال", offlineDetail: "واجهة التطبيق ودليل التعلم المحفوظان جاهزان. اتصل بالإنترنت لحفظ التقدم الجديد.", syncSaved: "تمت مزامنة الإجابات المحفوظة.", syncRejected: "تحتاج بعض الإجابات المحفوظة إلى سؤال جديد قبل إرسالها." },
   pwa: { install: "ثبّت التطبيق", installed: "تم تثبيت التطبيق" },
   admin: { seed: "تحميل المحتوى الأولي", title: "استديو المحتوى", description: "ضوابط المدير فقط للمنهج الأولي المنشور.", curriculum: "المنهج الأولي", worlds: "العوالم", skills: "المهارات", lessons: "الدروس", saved: "المحتوى الأولي جاهز." },
 };
