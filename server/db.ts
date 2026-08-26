@@ -44,6 +44,8 @@ import { buildAggregateAnalytics, safeAnalyticsPayload } from "./privacyAnalytic
 import { processQueuedAnswer } from "./offlineSync";
 import { inventoryEquipPlan, petEquipPlan } from "./rewardEquipment";
 import { activeQuestForPeriod } from "./questSchedule";
+import { questProgressPlan } from "./questProgress";
+import { dashboardEquipmentProjection } from "./dashboardProjection";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let curriculumCache: { expiresAt: number; value: any } | null = null;
@@ -397,11 +399,11 @@ export async function completeLearningSession(userId: number, input: { childId: 
     const now = new Date();
     await db.update(learningSessions).set({ completedAt: now, durationSeconds }).where(eq(learningSessions.id, input.sessionId));
     const dailyQuest = activeQuestForPeriod(starterQuests, true, now);
-    if (dailyQuest?.key === "daily-lesson") {
+    if (dailyQuest) {
       const periodKey = dayKey(now);
       const current = (await db.select().from(questProgress).where(and(eq(questProgress.childId, input.childId), eq(questProgress.questKey, dailyQuest.key), eq(questProgress.periodKey, periodKey))).limit(1))[0];
-      const progress = Math.min(dailyQuest.target, (current?.progress ?? 0) + 1);
-      await db.insert(questProgress).values({ id: current?.id ?? randomUUID(), childId: input.childId, questKey: dailyQuest.key, periodKey, progress, completedAt: progress >= dailyQuest.target ? now : null }).onDuplicateKeyUpdate({ set: { progress, completedAt: progress >= dailyQuest.target ? now : null } });
+      const plan = questProgressPlan({ event: "learning_session_completed", quest: dailyQuest, currentProgress: current?.progress ?? 0 });
+      if (plan.shouldPersist) await db.insert(questProgress).values({ id: current?.id ?? randomUUID(), childId: input.childId, questKey: dailyQuest.key, periodKey, progress: plan.progress, completedAt: plan.completed ? now : null }).onDuplicateKeyUpdate({ set: { progress: plan.progress, completedAt: plan.completed ? now : null } });
     }
   }
   return { success: true } as const;
@@ -467,11 +469,11 @@ export async function recordBossAnswer(userId: number, input: { childId: string;
     if (nextWorld) writes.push(db.update(worldProgress).set({ isUnlocked: true }).where(and(eq(worldProgress.childId, child.id), eq(worldProgress.worldKey, nextWorld.key))));
     const now = new Date();
     const weeklyQuest = activeQuestForPeriod(starterQuests, false, now);
-    if (weeklyQuest?.key === "weekly-battle") {
+    if (weeklyQuest) {
       const periodKey = weekKey(now);
       const current = (await db.select().from(questProgress).where(and(eq(questProgress.childId, child.id), eq(questProgress.questKey, weeklyQuest.key), eq(questProgress.periodKey, periodKey))).limit(1))[0];
-      const progress = Math.min(weeklyQuest.target, (current?.progress ?? 0) + 1);
-      writes.push(db.insert(questProgress).values({ id: current?.id ?? randomUUID(), childId: child.id, questKey: weeklyQuest.key, periodKey, progress, completedAt: progress >= weeklyQuest.target ? now : null }).onDuplicateKeyUpdate({ set: { progress, completedAt: progress >= weeklyQuest.target ? now : null } }));
+      const plan = questProgressPlan({ event: "boss_completed", quest: weeklyQuest, currentProgress: current?.progress ?? 0 });
+      if (plan.shouldPersist) writes.push(db.insert(questProgress).values({ id: current?.id ?? randomUUID(), childId: child.id, questKey: weeklyQuest.key, periodKey, progress: plan.progress, completedAt: plan.completed ? now : null }).onDuplicateKeyUpdate({ set: { progress: plan.progress, completedAt: plan.completed ? now : null } }));
     }
     await Promise.all(writes);
     completionRewards = completion.completionRewards;
@@ -548,8 +550,10 @@ export async function recordAnswer(userId: number, input: { childId: string; que
   }
   const quest = dailyQuestRows[0];
   const weeklyProgress = weeklyQuestRows[0];
-  const questValue = dailyQuest.key === "daily-five" ? Math.min(dailyQuest.target, (quest?.progress ?? 0) + 1) : (quest?.progress ?? 0);
-  const weeklyValue = weeklyQuest.key === "weekly-practice" ? Math.min(weeklyQuest.target, (weeklyProgress?.progress ?? 0) + 1) : (weeklyProgress?.progress ?? 0);
+  const dailyQuestPlan = questProgressPlan({ event: "answer_submitted", quest: dailyQuest, currentProgress: quest?.progress ?? 0 });
+  const weeklyQuestPlan = questProgressPlan({ event: "answer_submitted", quest: weeklyQuest, currentProgress: weeklyProgress?.progress ?? 0 });
+  const questValue = dailyQuestPlan.progress;
+  const weeklyValue = weeklyQuestPlan.progress;
   const unlocked = [] as string[];
   if (attempts === 1) unlocked.push("first-spark");
   if (nextStreak >= 3) unlocked.push("three-day-streak");
@@ -563,8 +567,8 @@ export async function recordAnswer(userId: number, input: { childId: string; que
     db.insert(analyticsEvents).values({ id: randomUUID(), parentId: child.parentId, childId: child.id, eventKey: "answer_submitted", payload: safeAnalyticsPayload("answer_submitted", { skillKey: question.skillKey, isCorrect, responseTimeMs: input.responseTimeMs, usedHint: input.usedHint }) }),
     ...worldWrites,
   ];
-  if (dailyQuest.key === "daily-five") writes.push(db.insert(questProgress).values({ id: quest?.id ?? randomUUID(), childId: child.id, questKey: dailyQuest.key, periodKey, progress: questValue, completedAt: questValue >= dailyQuest.target ? now : null }).onDuplicateKeyUpdate({ set: { progress: questValue, completedAt: questValue >= dailyQuest.target ? now : null } }));
-  if (weeklyQuest.key === "weekly-practice") writes.push(db.insert(questProgress).values({ id: weeklyProgress?.id ?? randomUUID(), childId: child.id, questKey: weeklyQuest.key, periodKey: currentWeekKey, progress: weeklyValue, completedAt: weeklyValue >= weeklyQuest.target ? now : null }).onDuplicateKeyUpdate({ set: { progress: weeklyValue, completedAt: weeklyValue >= weeklyQuest.target ? now : null } }));
+  if (dailyQuestPlan.shouldPersist) writes.push(db.insert(questProgress).values({ id: quest?.id ?? randomUUID(), childId: child.id, questKey: dailyQuest.key, periodKey, progress: questValue, completedAt: dailyQuestPlan.completed ? now : null }).onDuplicateKeyUpdate({ set: { progress: questValue, completedAt: dailyQuestPlan.completed ? now : null } }));
+  if (weeklyQuestPlan.shouldPersist) writes.push(db.insert(questProgress).values({ id: weeklyProgress?.id ?? randomUUID(), childId: child.id, questKey: weeklyQuest.key, periodKey: currentWeekKey, progress: weeklyValue, completedAt: weeklyQuestPlan.completed ? now : null }).onDuplicateKeyUpdate({ set: { progress: weeklyValue, completedAt: weeklyQuestPlan.completed ? now : null } }));
   if (rewards.xp || rewards.coins) writes.push(db.insert(rewardTransactions).values([
     ...(rewards.xp ? [{ id: randomUUID(), childId: child.id, kind: "xp" as const, amount: rewards.xp, reasonKey: isCorrect ? "rewards.correctAnswer" : "rewards.braveTry" }] : []),
     ...(rewards.coins ? [{ id: randomUUID(), childId: child.id, kind: "coins" as const, amount: rewards.coins, reasonKey: "rewards.correctAnswer" }] : []),
@@ -625,8 +629,7 @@ export async function getChildDashboard(userId: number, childId: string) {
     recommendationKey: adaptiveRows[0]?.reasonKey ?? (weakest ? "recommendations.practiceSkill" : "recommendations.startAdventure"),
     recommendationSkillKey: adaptiveRows[0]?.skillKey ?? weakest?.skillKey ?? "count-to-20",
     adaptive: adaptiveRows[0] ?? null,
-    equippedCosmeticKeys: equippedInventoryRows.map(item => item.itemKey),
-    equippedPetKey: equippedPetRows[0]?.petKey ?? null,
+    ...dashboardEquipmentProjection(equippedInventoryRows, equippedPetRows),
     dailyQuest: { key: dailyQuest.key, titleKey: dailyQuest.titleKey, progress: questRows[0]?.progress ?? 0, target: dailyQuest.target, rewardXp: dailyQuest.rewardXp, rewardCoins: dailyQuest.rewardCoins },
     weeklyQuest: { key: weeklyQuest.key, titleKey: weeklyQuest.titleKey, progress: weeklyQuestRows[0]?.progress ?? 0, target: weeklyQuest.target, rewardXp: weeklyQuest.rewardXp, rewardCoins: weeklyQuest.rewardCoins },
   };
