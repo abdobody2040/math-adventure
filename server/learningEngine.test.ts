@@ -42,6 +42,16 @@ describe("learningEngine", () => {
     expect(generateQuestion("count-to-20", 2, "challenge-count", "challenge").presentation.interaction).toBe("timed");
   });
 
+  it("supports every required lesson interaction template", () => {
+    expect(generateQuestion("make-ten", 1, "numeric").presentation.interaction).toBe("numeric");
+    expect(generateQuestion("logical-reasoning", 1, "true-false").presentation.interaction).toBe("trueFalse");
+    expect(generateQuestion("number-sequences", 1, "ordering").presentation.interaction).toBe("ordering");
+    expect(generateQuestion("equivalent-fractions", 1, "matching").presentation.interaction).toBe("matching");
+    expect(generateQuestion("fraction-concepts", 1, "visual").presentation.interaction).toBe("visual");
+    expect(generateQuestion("addition-word-problems", 1, "timed").presentation.interaction).toBe("timed");
+    expect(generateBossQuestion("number-valley", 3, "boss-interaction").presentation.interaction).toBe("boss");
+  });
+
   it("creates a structured, canonical pair-matching question", () => {
     const question = generateQuestion("equivalent-fractions", 2, "match-1");
     expect(question.presentation.interaction).toBe("matching");

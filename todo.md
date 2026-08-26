@@ -41,7 +41,7 @@
 - [ ] Run a fresh post-fix browser-console and network validation after the updated service worker is active.
 - [ ] Document the confirmed root cause by tying the observed affected-flow failure to the specific code change that resolves it.
 - [ ] Compare the implemented product against the supplied PRD and document only missing or partially implemented capabilities.
-- [ ] Extend the question engine with numeric input, true/false, ordering, matching, visual selection, word-problem, timed, and boss-question templates.
+- [x] Extend the question engine with numeric input, true/false, ordering, matching, visual selection, word-problem, timed, and boss-question templates.
 - [ ] Implement an adaptive learning service that uses accuracy, speed, attempts, hints, and recent performance to select the next activity and difficulty.
 - [x] Implement multi-skill boss battles with gentle health mechanics, retries, explanations, unlock rewards, and completion records.
 - [x] Add the remaining five PRD worlds and their seeded skills, lessons, templates, and progression rules.
