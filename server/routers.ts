@@ -19,6 +19,8 @@ import {
   completeLearningSession,
   getChildDashboard,
   getChildRewards,
+  equipInventoryItem,
+  equipPet,
   getParentPreferences,
   getWeeklyReport,
   getAdaptiveNextQuestion,
@@ -108,6 +110,8 @@ export const appRouter = router({
     collection: protectedProcedure.input(childIdInput).query(({ ctx, input }) => getChildRewards(ctx.user.id, input.childId)),
     redeemItem: protectedProcedure.input(childIdInput.extend({ itemKey: z.string().min(1).max(64) })).mutation(({ ctx, input }) => redeemInventoryItem(ctx.user.id, input)),
     unlockPet: protectedProcedure.input(childIdInput.extend({ petKey: z.string().min(1).max(64) })).mutation(({ ctx, input }) => unlockPet(ctx.user.id, input)),
+    equipItem: protectedProcedure.input(childIdInput.extend({ itemKey: z.string().min(1).max(64) })).mutation(({ ctx, input }) => equipInventoryItem(ctx.user.id, input)),
+    equipPet: protectedProcedure.input(childIdInput.extend({ petKey: z.string().min(1).max(64) })).mutation(({ ctx, input }) => equipPet(ctx.user.id, input)),
   }),
   tutor: router({
     hint: protectedProcedure.input(childIdInput.extend({ skillKey: z.string().min(1).max(64), presentation: z.unknown(), locale: z.enum(["en", "ar"]) })).mutation(async ({ ctx, input }) => {

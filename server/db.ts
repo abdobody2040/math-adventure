@@ -42,6 +42,7 @@ import { recentPerformanceMetrics, selectAdaptiveSkill } from "./adaptiveSelecti
 import { applyPersistedPerformanceGuard, resolveAdaptiveQuestionTarget } from "./nextQuestionTarget";
 import { buildAggregateAnalytics, safeAnalyticsPayload } from "./privacyAnalytics";
 import { processQueuedAnswer } from "./offlineSync";
+import { inventoryEquipPlan, petEquipPlan } from "./rewardEquipment";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let curriculumCache: { expiresAt: number; value: any } | null = null;
@@ -343,6 +344,35 @@ export async function unlockPet(userId: number, input: { childId: string; petKey
     db.insert(analyticsEvents).values({ id: randomUUID(), parentId: child.parentId, childId: child.id, eventKey: "pet_unlocked", payload: safeAnalyticsPayload("pet_unlocked", { petKey: pet.key }) }),
   ]);
   return { success: true, coins: child.coins - pet.unlockCoins } as const;
+}
+
+export async function equipInventoryItem(userId: number, input: { childId: string; itemKey: string }) {
+  const db = await requireDb();
+  const child = await assertOwnedChild(userId, input.childId);
+  const owned = (await db.select().from(childInventory).where(and(eq(childInventory.childId, child.id), eq(childInventory.itemKey, input.itemKey))).limit(1))[0];
+  if (!owned) throw new Error("rewards.error.itemNotOwned");
+  const item = (await db.select().from(inventoryItems).where(eq(inventoryItems.key, input.itemKey)).limit(1))[0];
+  if (!item) throw new Error("rewards.error.itemUnavailable");
+  const categoryKeys = (await db.select({ key: inventoryItems.key }).from(inventoryItems).where(eq(inventoryItems.category, item.category))).map(row => row.key);
+  const plan = inventoryEquipPlan(categoryKeys, item.key);
+  await Promise.all([
+    ...plan.unequipItemKeys.map(itemKey => db.update(childInventory).set({ equipped: false }).where(and(eq(childInventory.childId, child.id), eq(childInventory.itemKey, itemKey)))),
+    db.update(childInventory).set({ equipped: true }).where(eq(childInventory.id, owned.id)),
+  ]);
+  return { success: true, equippedItemKey: item.key, category: item.category } as const;
+}
+
+export async function equipPet(userId: number, input: { childId: string; petKey: string }) {
+  const db = await requireDb();
+  const child = await assertOwnedChild(userId, input.childId);
+  const owned = (await db.select().from(childPets).where(and(eq(childPets.childId, child.id), eq(childPets.petKey, input.petKey))).limit(1))[0];
+  if (!owned) throw new Error("rewards.error.petNotOwned");
+  const plan = petEquipPlan(owned.petKey);
+  await Promise.all([
+    ...(plan.clearAllPets ? [db.update(childPets).set({ equipped: false }).where(eq(childPets.childId, child.id))] : []),
+    db.update(childPets).set({ equipped: true }).where(eq(childPets.id, owned.id)),
+  ]);
+  return { success: true, equippedPetKey: owned.petKey } as const;
 }
 
 export async function createLearningSession(userId: number, input: { childId: string; skillKey: string; mode: "lesson" | "battle" }) {
