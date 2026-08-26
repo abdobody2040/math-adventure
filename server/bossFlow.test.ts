@@ -20,4 +20,19 @@ describe("boss flow core", () => {
       completionRewards: { xp: 60, coins: 25, unlockedWorldKey: "subtraction-desert" },
     });
   });
+
+  it("runs an authored boss challenge from generated question through answer evaluation, health, and completion reward", () => {
+    const draft = createBossQuestionDraft("addition-forest", "attempt-sequence", 1724414400000);
+    const wrongAnswer = draft.correctAnswer === "0" ? "1" : "0";
+    const afterWrongAnswer = calculateBossHealth(34, wrongAnswer === draft.correctAnswer);
+    const afterCorrectAnswer = calculateBossHealth(afterWrongAnswer, draft.correctAnswer === draft.correctAnswer);
+
+    expect(draft.presentation).toMatchObject({ interaction: "boss", bossTemplateKey: expect.any(String) });
+    expect(afterWrongAnswer).toBe(34);
+    expect(afterCorrectAnswer).toBe(0);
+    expect(calculateBossCompletion({ worldKey: "addition-forest", healthRemaining: afterCorrectAnswer, rewardXp: 60, rewardCoins: 25, currentXp: 140, currentCoins: 19 })).toMatchObject({
+      completed: true,
+      completionRewards: { xp: 60, coins: 25, unlockedWorldKey: "subtraction-desert" },
+    });
+  });
 });
