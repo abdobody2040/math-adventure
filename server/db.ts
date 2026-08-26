@@ -41,6 +41,7 @@ import { calculateBossCompletion, calculateBossHealth, createBossQuestionDraft }
 import { recentPerformanceMetrics, selectAdaptiveSkill } from "./adaptiveSelection";
 import { applyPersistedPerformanceGuard, resolveAdaptiveQuestionTarget } from "./nextQuestionTarget";
 import { buildAggregateAnalytics, safeAnalyticsPayload } from "./privacyAnalytics";
+import { processQueuedAnswer } from "./offlineSync";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let curriculumCache: { expiresAt: number; value: any } | null = null;
@@ -533,11 +534,11 @@ export async function syncOfflineAnswers(userId: number, input: { childId: strin
     const existing = (await db.select().from(offlineSyncOperations).where(and(eq(offlineSyncOperations.childId, input.childId), eq(offlineSyncOperations.idempotencyKey, operation.idempotencyKey))).limit(1))[0];
     if (existing?.processedAt) { results.push({ idempotencyKey: operation.idempotencyKey, status: "duplicate" }); continue; }
     if (!existing) await db.insert(offlineSyncOperations).values({ id: randomUUID(), childId: input.childId, idempotencyKey: operation.idempotencyKey, operationType: "answer", payload: operation });
-    try {
+    const status = await processQueuedAnswer(existing, async () => {
       await recordAnswer(userId, { childId: input.childId, questionSessionId: operation.questionSessionId, answer: operation.answer, responseTimeMs: operation.responseTimeMs, usedHint: operation.usedHint });
       await db.update(offlineSyncOperations).set({ processedAt: new Date() }).where(and(eq(offlineSyncOperations.childId, input.childId), eq(offlineSyncOperations.idempotencyKey, operation.idempotencyKey)));
-      results.push({ idempotencyKey: operation.idempotencyKey, status: "processed" });
-    } catch { results.push({ idempotencyKey: operation.idempotencyKey, status: "rejected" }); }
+    });
+    results.push({ idempotencyKey: operation.idempotencyKey, status });
   }
   return { results };
 }
