@@ -33,6 +33,12 @@ describe("admin content access", () => {
     await expect(caller.admin.content()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("returns authored content to an administrator", async () => {
+    const caller = appRouter.createCaller(createUserContext("admin"));
+
+    await expect(caller.admin.content()).resolves.toMatchObject({ worlds: expect.any(Array), skills: expect.any(Array), questionTemplates: expect.any(Array), quests: expect.any(Array), rewards: expect.any(Array) });
+  });
+
   it("rejects a non-admin caller before changing a reward", async () => {
     const caller = appRouter.createCaller(createUserContext("user"));
 
