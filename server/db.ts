@@ -427,6 +427,12 @@ function dayKey(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
+export function weekKey(date: Date) {
+  const mondayOffset = (date.getUTCDay() + 6) % 7;
+  const monday = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - mondayOffset));
+  return monday.toISOString().slice(0, 10);
+}
+
 function calculateStreak(lastPracticeAt: Date | null, currentStreak: number, now: Date) {
   if (!lastPracticeAt) return 1;
   const today = dayKey(now);
@@ -446,9 +452,12 @@ export async function recordAnswer(userId: number, input: { childId: string; que
   const now = new Date();
   const rewards = rewardForAttempt(isCorrect, input.responseTimeMs);
   const periodKey = dayKey(now);
-  const [progressRows, dailyQuestRows, recentSkillAttempts] = await Promise.all([
+  const currentWeekKey = weekKey(now);
+  const weeklyQuest = starterQuests.find(quest => !quest.isDaily) ?? starterQuest;
+  const [progressRows, dailyQuestRows, weeklyQuestRows, recentSkillAttempts] = await Promise.all([
     db.select().from(skillProgress).where(and(eq(skillProgress.childId, child.id), eq(skillProgress.skillKey, question.skillKey))).limit(1),
     db.select().from(questProgress).where(and(eq(questProgress.childId, child.id), eq(questProgress.questKey, "daily-five"), eq(questProgress.periodKey, periodKey))).limit(1),
+    db.select().from(questProgress).where(and(eq(questProgress.childId, child.id), eq(questProgress.questKey, weeklyQuest.key), eq(questProgress.periodKey, currentWeekKey))).limit(1),
     db.select().from(questionAttempts).where(and(eq(questionAttempts.childId, child.id), eq(questionAttempts.skillKey, question.skillKey))).orderBy(desc(questionAttempts.createdAt)).limit(8),
   ]);
   const existing = progressRows[0];
@@ -481,7 +490,9 @@ export async function recordAnswer(userId: number, input: { childId: string; que
     }
   }
   const quest = dailyQuestRows[0];
+  const weeklyProgress = weeklyQuestRows[0];
   const questValue = Math.min(starterQuest.target, (quest?.progress ?? 0) + 1);
+  const weeklyValue = Math.min(weeklyQuest.target, (weeklyProgress?.progress ?? 0) + 1);
   const unlocked = [] as string[];
   if (attempts === 1) unlocked.push("first-spark");
   if (nextStreak >= 3) unlocked.push("three-day-streak");
@@ -491,6 +502,7 @@ export async function recordAnswer(userId: number, input: { childId: string; que
     db.insert(questionAttempts).values({ id: randomUUID(), childId: child.id, sessionId: question.id, skillKey: question.skillKey, submittedAnswer: input.answer, isCorrect, responseTimeMs: input.responseTimeMs, usedHint: input.usedHint }),
     db.update(childProfiles).set({ xp, coins, level, streakDays: nextStreak, lastPracticeAt: now }).where(eq(childProfiles.id, child.id)),
     db.insert(questProgress).values({ id: quest?.id ?? randomUUID(), childId: child.id, questKey: "daily-five", periodKey, progress: questValue, completedAt: questValue >= starterQuest.target ? now : null }).onDuplicateKeyUpdate({ set: { progress: questValue, completedAt: questValue >= starterQuest.target ? now : null } }),
+    db.insert(questProgress).values({ id: weeklyProgress?.id ?? randomUUID(), childId: child.id, questKey: weeklyQuest.key, periodKey: currentWeekKey, progress: weeklyValue, completedAt: weeklyValue >= weeklyQuest.target ? now : null }).onDuplicateKeyUpdate({ set: { progress: weeklyValue, completedAt: weeklyValue >= weeklyQuest.target ? now : null } }),
     db.insert(adaptiveRecommendations).values({ id: randomUUID(), childId: child.id, skillKey: recommendationSkillKey, action: adaptive.action, difficulty: adaptive.difficulty, reasonKey: adaptive.reasonKey, priority: adaptive.priority }),
     db.insert(adaptivePerformanceSnapshots).values({ id: randomUUID(), childId: child.id, skillKey: question.skillKey, windowSize: recentSkillAttempts.length + 1, correctRateBps: Math.round((recentMetrics.correctRate ?? 0) * 10000), averageResponseTimeMs: recentMetrics.averageResponseTimeMs ?? input.responseTimeMs, usedHint: input.usedHint }),
     db.insert(analyticsEvents).values({ id: randomUUID(), parentId: child.parentId, childId: child.id, eventKey: "answer_submitted", payload: { skillKey: question.skillKey, isCorrect, responseTimeMs: input.responseTimeMs, usedHint: input.usedHint } }),
@@ -502,7 +514,7 @@ export async function recordAnswer(userId: number, input: { childId: string; que
   ]));
   unlocked.forEach(achievementKey => writes.push(db.insert(childAchievements).values({ id: randomUUID(), childId: child.id, achievementKey }).onDuplicateKeyUpdate({ set: { achievementKey } })));
   await Promise.all(writes);
-  return { isCorrect, rewards, mastery, adaptive, level, xp, coins, streakDays: nextStreak, quest: { progress: questValue, target: starterQuest.target, completed: questValue >= starterQuest.target }, unlockedAchievementKeys: unlocked, newlyUnlockedWorldKey };
+  return { isCorrect, rewards, mastery, adaptive, level, xp, coins, streakDays: nextStreak, quest: { progress: questValue, target: starterQuest.target, completed: questValue >= starterQuest.target }, weeklyQuest: { progress: weeklyValue, target: weeklyQuest.target, completed: weeklyValue >= weeklyQuest.target }, unlockedAchievementKeys: unlocked, newlyUnlockedWorldKey };
 }
 
 export async function syncOfflineAnswers(userId: number, input: { childId: string; operations: { idempotencyKey: string; questionSessionId: string; answer: string; responseTimeMs: number; usedHint: boolean }[] }) {
@@ -526,11 +538,13 @@ export async function getChildDashboard(userId: number, childId: string) {
   const db = await requireDb();
   const child = await assertOwnedChild(userId, childId);
   await ensureChildWorldProgress(child.id);
-  const [progress, recentAttempts, unlocked, questRows, worldRows, sessionRows, adaptiveRows] = await Promise.all([
+  const weeklyQuest = starterQuests.find(quest => !quest.isDaily) ?? starterQuest;
+  const [progress, recentAttempts, unlocked, questRows, weeklyQuestRows, worldRows, sessionRows, adaptiveRows] = await Promise.all([
     db.select().from(skillProgress).where(eq(skillProgress.childId, child.id)),
     db.select().from(questionAttempts).where(eq(questionAttempts.childId, child.id)).orderBy(desc(questionAttempts.createdAt)).limit(8),
     db.select().from(childAchievements).where(eq(childAchievements.childId, child.id)),
     db.select().from(questProgress).where(and(eq(questProgress.childId, child.id), eq(questProgress.questKey, "daily-five"), eq(questProgress.periodKey, dayKey(new Date())))).limit(1),
+    db.select().from(questProgress).where(and(eq(questProgress.childId, child.id), eq(questProgress.questKey, weeklyQuest.key), eq(questProgress.periodKey, weekKey(new Date())))).limit(1),
     db.select().from(worldProgress).where(eq(worldProgress.childId, child.id)),
     db.select().from(learningSessions).where(eq(learningSessions.childId, child.id)),
     db.select().from(adaptiveRecommendations).where(and(eq(adaptiveRecommendations.childId, child.id), isNull(adaptiveRecommendations.dismissedAt))).orderBy(desc(adaptiveRecommendations.createdAt)).limit(1),
@@ -551,6 +565,7 @@ export async function getChildDashboard(userId: number, childId: string) {
     recommendationSkillKey: adaptiveRows[0]?.skillKey ?? weakest?.skillKey ?? "count-to-20",
     adaptive: adaptiveRows[0] ?? null,
     dailyQuest: { key: starterQuest.key, titleKey: starterQuest.titleKey, progress: questRows[0]?.progress ?? 0, target: starterQuest.target, rewardXp: starterQuest.rewardXp, rewardCoins: starterQuest.rewardCoins },
+    weeklyQuest: { key: weeklyQuest.key, titleKey: weeklyQuest.titleKey, progress: weeklyQuestRows[0]?.progress ?? 0, target: weeklyQuest.target, rewardXp: weeklyQuest.rewardXp, rewardCoins: weeklyQuest.rewardCoins },
   };
 }
 
