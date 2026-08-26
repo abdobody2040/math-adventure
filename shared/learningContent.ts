@@ -68,6 +68,7 @@ export const starterQuests = [
   { key: "daily-five", titleKey: "quests.dailyFive", target: 5, rewardXp: 25, rewardCoins: 10, isDaily: true },
   { key: "daily-lesson", titleKey: "quests.dailyLesson", target: 1, rewardXp: 20, rewardCoins: 8, isDaily: true },
   { key: "weekly-practice", titleKey: "quests.weeklyPractice", target: 5, rewardXp: 80, rewardCoins: 35, isDaily: false },
+  { key: "weekly-battle", titleKey: "quests.weeklyBattle", target: 3, rewardXp: 100, rewardCoins: 45, isDaily: false },
 ];
 export const starterQuest = starterQuests[0];
 export const starterBosses = starterWorlds.map(world => ({ worldKey: world.key, titleKey: `bosses.${world.key}`, health: 100, rewardXp: 60, rewardCoins: 25, badgeKey: "world-champion" }));

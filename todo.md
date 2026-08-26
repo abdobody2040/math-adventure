@@ -46,6 +46,8 @@
 - [x] Implement multi-skill boss battles with gentle health mechanics, retries, explanations, unlock rewards, and completion records.
 - [x] Add the remaining five PRD worlds and their seeded skills, lessons, templates, and progression rules.
 - [ ] Add avatar cosmetics, inventory, healthy pets, daily and weekly quest variety, and cosmetic reward redemption.
+- [ ] Implement multiple active daily and weekly quest types with gameplay-driven progress and regression coverage.
+- [ ] Add protected read-model coverage for equipped cosmetics and the active pet across the child dashboard experience.
 - [ ] Expand parent controls for multiple children, child deletion, privacy preferences, export requests, weekly reports, and notification settings.
 - [x] Convert the administrator view into secured CRUD management for curriculum, questions, rewards, quests, and difficulty settings.
 - [x] Add visible success and error states for each protected admin authoring form and cover successful admin read/save routing.
