@@ -5,6 +5,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { consumeTutorHintAllowance } from "./tutorRateLimit";
 import {
   createChild,
   createBossQuestion,
@@ -111,6 +112,8 @@ export const appRouter = router({
   tutor: router({
     hint: protectedProcedure.input(childIdInput.extend({ skillKey: z.string().min(1).max(64), presentation: z.unknown(), locale: z.enum(["en", "ar"]) })).mutation(async ({ ctx, input }) => {
       await getChildDashboard(ctx.user.id, input.childId);
+      const allowance = consumeTutorHintAllowance(`${ctx.user.id}:${input.childId}`);
+      if (!allowance.allowed) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `tutor.rateLimited:${allowance.retryAfterSeconds}` });
       return { hint: await createTutorHint({ skillKey: input.skillKey, presentation: input.presentation, locale: input.locale }) };
     }),
   }),
