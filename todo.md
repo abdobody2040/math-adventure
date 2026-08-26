@@ -57,6 +57,7 @@
 - [ ] Add the constrained premium AI tutor with guided hints and practice support after the AI integration is configured.
 - [ ] Add offline progress queuing, secure sync, and duplicate-reward conflict prevention.
 - [ ] Add end-to-end, accessibility, rate-limit, and performance audit coverage for the completed PRD flows.
+- [x] Respect reduced-motion preferences for decorative animations and transitions across the adventure UI.
 - [x] Correct the localized accessible name for the language-switch button.
 - [x] Implement real boss-question templates and boss-session generation, then cover them with gameplay tests.
 - [x] Build distinct answer interactions for ordering, matching, and visual-selection formats instead of generic answer buttons.
