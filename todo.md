@@ -59,14 +59,14 @@
 - [ ] Add end-to-end, accessibility, rate-limit, and performance audit coverage for the completed PRD flows.
 - [ ] Implement real boss-question templates and boss-session generation, then cover them with gameplay tests.
 - [x] Build distinct answer interactions for ordering, matching, and visual-selection formats instead of generic answer buttons.
-- [ ] Make the server choose the next adaptive skill, activity, and difficulty; remove the fixed client difficulty path.
+- [x] Make the server choose the next adaptive skill, activity, and difficulty; remove the fixed client difficulty path.
 - [x] Calculate and persist recent-performance metrics for adaptive decisions and test their effect on selected next activity and difficulty.
 - [x] Implement true matching and visual-selection mechanics backed by dedicated presentation data instead of styled generic buttons.
 - [x] Create dedicated boss-question templates and content rather than relabeling normal skill questions.
 - [ ] Add protected boss-flow regression coverage for authored boss-session generation, answer progression, and health completion updates.
-- [ ] Make server-selected adaptive activity override fixed client-requested skills when a remediation or advancement path is indicated.
-- [ ] Add regression tests proving adaptive recommendations change the actual next skill, activity, and difficulty.
-- [ ] Exercise the protected adaptive next-question procedure with a server recommendation and assert the returned target overrides the client request.
+- [x] Make server-selected adaptive activity override fixed client-requested skills when a remediation or advancement path is indicated.
+- [x] Add regression tests proving adaptive recommendations change the actual next skill, activity, and difficulty.
+- [x] Exercise the protected adaptive next-question procedure with a server recommendation and assert the returned target overrides the client request.
 - [ ] Cover persisted adaptive-performance snapshots through the real next-question selection path, including activity and difficulty effects.
 - [x] Implement a dedicated visual-selection interaction that consumes visualOptions rather than the generic answer grid, and cover visual, ordering, and matching answer serialization with regression tests.
 - [x] Refactor visual question rendering so LessonExperience does not also emit the hidden generic answer-grid branch, and add client-side serialization regressions for ordering, matching, and visual selections.
