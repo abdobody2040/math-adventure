@@ -74,3 +74,5 @@
 - [x] Refactor visual question rendering so LessonExperience does not also emit the hidden generic answer-grid branch, and add client-side serialization regressions for ordering, matching, and visual selections.
 - [x] Enforce the data-export preference in the protected server export path and add regression coverage for blocked exports.
 - [ ] Wire weekly-report and learning-reminder preferences into an actual enabled/disabled delivery decision, with protected-procedure regression coverage.
+- [ ] Continue non-authenticated hardening and validation while real parent-session acceptance is intentionally deferred.
+- [ ] Revisit deferred signed-in acceptance after a real parent session is available.

@@ -10,4 +10,9 @@ describe("adventure accessibility styles", () => {
     expect(styles).toContain("transition-duration: 0.01ms !important;");
     expect(styles).toContain("scroll-behavior: auto !important;");
   });
+
+  it("keeps the onboarding hero in normal flow on narrow phones", () => {
+    expect(styles).toContain(".onboarding-intro {\n    min-height: 0;");
+    expect(styles).toContain(".onboarding-art {\n    inset: auto;");
+  });
 });

@@ -107,3 +107,25 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Keep the parent setup hero fully visible on narrow phones. */
+@media (max-width: 600px) {
+  .onboarding-intro {
+    min-height: 0;
+    overflow: hidden;
+    padding: 26px 22px 18px;
+  }
+  .onboarding-intro h1 {
+    max-width: 100%;
+    font-size: 30px;
+  }
+  .onboarding-intro > p:not(.eyebrow) {
+    max-width: none;
+  }
+  .onboarding-art {
+    inset: auto;
+    width: 100%;
+    min-height: 124px;
+    margin-top: 16px;
+  }
+}
