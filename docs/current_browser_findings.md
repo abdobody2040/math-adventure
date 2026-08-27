@@ -5,3 +5,5 @@ On 2026-08-26, an early unauthenticated mobile preview at 375×812 rendered the 
 Later that day, a fresh 375×812 preview again captured the startup skeleton on its initial frame; a direct browser navigation then showed the public English landing page normally. This supports treating the skeleton capture as an early-load artifact rather than evidence of a persistent public-route failure. Authenticated acceptance remains unavailable without a real parent-owned child profile.
 
 The current public browser session had no console output after the landing page loaded. Its service worker registration was active with no waiting worker on the preview origin. This verifies registration state only; it does not replace an offline/reconnect test for protected learning progress.
+
+A fresh public browser check after the mobile CSS update found the service worker activated on the preview origin and Cache Storage contained `math-adventure-static-v3`. This confirms the static PWA cache is registered in the public route; it does not claim a protected offline answer/reconnect test, which remains deferred until a real child profile is available.
